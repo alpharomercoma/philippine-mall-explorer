@@ -533,6 +533,54 @@ function renderMapList(points) {
   host.scrollTop = 0;
 }
 
+/* ---------- full screen ----------
+ *
+ * The map is the point of the page and it lives in a 74vh band. This gives it
+ * the display and gives it back.
+ *
+ * Two mechanisms because one of them is not universal: Safari on iOS refuses
+ * requestFullscreen for anything that is not a video, so a rejection falls back
+ * to pinning the panel over the page. The stylesheet treats both the same, so
+ * the only difference a reader can see is whether the browser chrome went away.
+ */
+
+function fullMapActive() {
+  return document.fullscreenElement === el('mapPanel')
+    || el('mapPanel').classList.contains('map-panel--full');
+}
+
+/** Reflect the real state on the control and re-measure the map.
+ *
+ *  Leaflet reads its container size once and caches it, so a map that changes
+ *  size without being told draws its marks against the old geometry: the tiles
+ *  it fetches cover the box it thinks it has, and the rest stays blank. */
+function syncFullMap() {
+  const on = fullMapActive();
+  const button = el('mapfull');
+  button.setAttribute('aria-pressed', String(on));
+  button.textContent = on ? 'Exit full screen' : 'Full screen';
+  if (mapview) mapview.refresh();
+}
+
+async function toggleFullMap() {
+  const panel = el('mapPanel');
+  if (fullMapActive()) {
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+    panel.classList.remove('map-panel--full');
+    syncFullMap();
+    return;
+  }
+  try {
+    await panel.requestFullscreen();
+    // fullscreenchange does the rest, including the re-measure.
+  } catch {
+    // No full screen for this element here. Cover the page instead, and take
+    // over Escape, which only exits the real thing.
+    panel.classList.add('map-panel--full');
+    syncFullMap();
+  }
+}
+
 async function syncMap() {
   const points = mapPoints();
   el('mapcount').textContent = `${fmt(points.length)} on the map`;
@@ -752,7 +800,14 @@ function buildFacets() {
   // one document-level handler closes any open panel
   document.addEventListener('click', closeAllPanels);
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeAllPanels();
+    if (e.key !== 'Escape') return;
+    // The browser already handles Escape for real full screen. The fallback is
+    // only a fixed element, so nothing would let the reader out of it.
+    if (el('mapPanel').classList.contains('map-panel--full')) {
+      toggleFullMap();
+      return;
+    }
+    closeAllPanels();
   });
 }
 
@@ -896,6 +951,13 @@ function wire() {
   });
 
   el('mapfit').addEventListener('click', () => mapview && mapview.fitToPoints());
+
+  el('mapfull').addEventListener('click', () => toggleFullMap());
+  // Fires for the button, for Escape, and for the browser leaving full screen
+  // on its own. Reading the state back rather than tracking it is what keeps
+  // the control honest: a button that says "Exit" over a restored page is
+  // worse than no button.
+  document.addEventListener('fullscreenchange', syncFullMap);
 
   el('mallsOnly').addEventListener('click', (e) => {
     state.mallsOnly = !state.mallsOnly;

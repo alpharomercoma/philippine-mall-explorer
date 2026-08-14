@@ -362,6 +362,61 @@ code { background: var(--surface-3); border-radius: 4px; padding: 1px 5px; font-
   width: 100%;
   background: var(--surface-3);
 }
+
+/* ---------- full screen ----------
+   Two mechanisms, one rule set. `:fullscreen` covers the real thing; the class
+   covers browsers that refuse it for a non-video element, which is Safari on
+   iOS. Both need the same thing from the layout, so neither gets its own idea
+   of what full screen looks like.
+
+   The height is the whole point. `.mapgrid` is normally a fixed 74vh band and
+   on a narrow screen it is `auto` with the map at its own clamp, so without
+   these overrides "full screen" would be a taller page rather than a full map.
+   The panel becomes a column: bar and note keep their content height, the grid
+   takes the rest. */
+#mapPanel:fullscreen,
+.map-panel--full {
+  display: flex;
+  flex-direction: column;
+  border-radius: 0;
+  background: var(--surface-2);
+}
+/* Only the fallback needs positioning; the real one is already the whole
+   screen. It sits above the page's own scale, where .stats is 2 and
+   .controls is 1. */
+.map-panel--full {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+/* Height only. The columns are left to the responsive rules above: restating
+   them here pinned the 264px list at every width, and on a 390px phone that
+   left the map 124px wide - "full screen" made it smaller. */
+#mapPanel:fullscreen .mapgrid,
+.map-panel--full .mapgrid {
+  height: auto;
+  min-height: 0;      /* a grid child scrolls instead of growing the row */
+  flex: 1 1 auto;
+  grid-template-rows: minmax(0, 1fr);
+}
+#mapPanel:fullscreen .maplist,
+.map-panel--full .maplist { max-height: none; }
+#mapPanel:fullscreen #map,
+.map-panel--full #map { height: 100%; }
+
+/* Narrow: one column, so the map takes the height and the list keeps a strip
+   under it rather than half the screen. */
+@media (max-width: 900px) {
+  #mapPanel:fullscreen .mapgrid,
+  .map-panel--full .mapgrid { grid-template-rows: minmax(0, 1fr) auto; }
+  /* A strip, not a half. The map is what full screen was asked for; the list
+     stays reachable by scrolling within it. */
+  #mapPanel:fullscreen .maplist,
+  .map-panel--full .maplist { max-height: 20vh; }
+}
+/* Chrome paints its own black behind a fullscreen element, which shows through
+   wherever the panel does not reach. */
+#mapPanel:fullscreen::backdrop { background: var(--surface); }
 #map:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .maplist {

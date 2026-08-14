@@ -714,3 +714,147 @@ def test_a_cluster_click_is_never_a_dead_click(page):
         pytest.fail("drilled eight times without reaching a single property or a stack")
     page.click("#tab-brands")
     page.wait_for_timeout(200)
+
+
+# ---------- full screen ----------
+
+
+_MAP_PAINT = """() => {
+  // Leaflet measures its container once and requests tiles for the area it
+  // believes it has. Resize it without saying so and the mosaic keeps the old
+  // extent: same tile count, no longer reaching the corner of a bigger box.
+  // That is the whole symptom, and it is what makes this measurable offline -
+  // the tile elements exist whether or not the images load.
+  const box = document.getElementById('map').getBoundingClientRect();
+  const tiles = [...document.querySelectorAll('#map .leaflet-tile')];
+  let right = 0, bottom = 0;
+  for (const t of tiles) {
+    const r = t.getBoundingClientRect();
+    right = Math.max(right, r.right - box.x);
+    bottom = Math.max(bottom, r.bottom - box.y);
+  }
+  // Absolute reach, not a count: tiles keep arriving after a resize, so the
+  // count alone moves on its own and proves nothing.
+  return { right: Math.round(right), bottom: Math.round(bottom),
+           w: Math.round(box.width), h: Math.round(box.height) };
+}"""
+
+
+def _assert_repainted(before, after, where):
+    """The map was re-measured, so its tiles reach across the area it now covers.
+
+    Told nothing, Leaflet keeps the mosaic it laid out for the old box: measured
+    at 992px of reach before and 994px after a box that grew by 180px, against
+    1095px when it is told. The gap between "did not move" and "followed the
+    box" is what this asserts, so the margin does not depend on how generously
+    Leaflet happens to over-provision tiles.
+    """
+    grew_w = after["w"] - before["w"]
+    grew_h = after["h"] - before["h"]
+    reach_w = after["right"] - before["right"]
+    reach_h = after["bottom"] - before["bottom"]
+    assert reach_w > grew_w / 2 or reach_h > grew_h / 2, (
+        f"{where}: the map grew by {grew_w}x{grew_h}px but its tiles reached only "
+        f"{reach_w}x{reach_h}px further, so Leaflet was never told its container "
+        f"changed and the new area is left unpainted"
+    )
+
+
+def _leave_full_map(page):
+    """Never inherit a stuck full screen from an earlier failure: the panel
+    covers the tabs, so the next test cannot even reach the map."""
+    page.evaluate(
+        """async () => {
+            document.getElementById('mapPanel').classList.remove('map-panel--full');
+            if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch {} }
+        }"""
+    )
+    page.wait_for_timeout(300)
+
+
+def test_map_fills_the_screen_and_comes_back(page):
+    """The map is the point of the page and it lives in a 74vh box. Full screen
+    gives it the display, and Escape gives the page back."""
+    _leave_full_map(page)
+    page.set_viewport_size({"width": 1280, "height": 900})
+    _open_map(page)
+    page.wait_for_timeout(1500)
+    before = page.locator("#map").bounding_box()
+    paint_before = page.evaluate(_MAP_PAINT)
+    button = page.locator("#mapfull")
+    assert button.count() == 1, "no full screen control in the map bar"
+    assert button.get_attribute("aria-pressed") == "false"
+
+    button.click()
+    page.wait_for_function("() => document.fullscreenElement !== null", timeout=5000)
+    page.wait_for_timeout(700)
+    assert page.evaluate("() => document.fullscreenElement.id") == "mapPanel"
+    assert button.get_attribute("aria-pressed") == "true"
+
+    during = page.locator("#map").bounding_box()
+    assert during["height"] > before["height"] * 1.15, (
+        f"map height barely moved: {before['height']} -> {during['height']}"
+    )
+    # The side list stays, so the map takes the width that is left, not all of it.
+    assert page.locator("#maplist").is_visible()
+
+    page.wait_for_timeout(1200)          # let the new tiles be requested
+    _assert_repainted(paint_before, page.evaluate(_MAP_PAINT), "full screen")
+
+    # Exit through the control. Escape also works, but only because the browser
+    # itself handles it for real full screen - a synthetic key event does not
+    # reach that, so asserting on it here would be asserting on nothing. The
+    # fallback's Escape is page-level and is covered by the next test.
+    button.click()
+    page.wait_for_function("() => document.fullscreenElement === null", timeout=5000)
+    page.wait_for_timeout(700)
+    after = page.locator("#map").bounding_box()
+    assert abs(after["height"] - before["height"]) < 2, (
+        f"map did not return to its own size: {before['height']} -> {after['height']}"
+    )
+    assert button.get_attribute("aria-pressed") == "false"
+    assert button.inner_text() == "Full screen"
+    page.click("#tab-brands")
+    page.wait_for_timeout(200)
+
+
+def test_full_screen_falls_back_when_the_browser_refuses(page):
+    """Safari on iOS rejects requestFullscreen for anything that is not a video.
+    The map then covers the page instead, and because that is only a positioned
+    element, nothing would release the reader from it: Escape has to be handled
+    rather than left to the browser."""
+    _leave_full_map(page)
+    page.set_viewport_size({"width": 1280, "height": 900})
+    _open_map(page)
+    page.wait_for_timeout(1500)
+    before = page.locator("#map").bounding_box()
+    paint_before = page.evaluate(_MAP_PAINT)
+    page.evaluate(
+        """() => {
+            const panel = document.getElementById('mapPanel');
+            panel.requestFullscreen = () => Promise.reject(new Error('refused'));
+        }"""
+    )
+    page.click("#mapfull")
+    page.wait_for_timeout(700)
+    assert page.evaluate("() => document.fullscreenElement") is None
+    assert page.locator("#mapPanel.map-panel--full").count() == 1, "no fallback applied"
+    assert page.get_attribute("#mapfull", "aria-pressed") == "true"
+
+    during = page.locator("#map").bounding_box()
+    assert during["height"] > before["height"] * 1.15, (
+        f"fallback did not enlarge the map: {before['height']} -> {during['height']}"
+    )
+    page.wait_for_timeout(1200)
+    _assert_repainted(paint_before, page.evaluate(_MAP_PAINT), "fallback")
+
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(700)
+    assert page.locator("#mapPanel.map-panel--full").count() == 0, "Escape did not release it"
+    assert page.get_attribute("#mapfull", "aria-pressed") == "false"
+    after = page.locator("#map").bounding_box()
+    assert abs(after["height"] - before["height"]) < 2
+    page.reload(wait_until="networkidle")          # drop the stubbed method
+    page.wait_for_selector("#app:not([hidden])", timeout=15000)
+    page.click("#tab-brands")
+    page.wait_for_timeout(200)
