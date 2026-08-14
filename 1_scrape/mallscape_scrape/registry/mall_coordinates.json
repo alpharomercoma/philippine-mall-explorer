@@ -554,6 +554,14 @@
       "matched": "The Plaza Bagong Silang",
       "ref": "way/844119917"
     },
+    "sm:mall-of-asia-arena-annex-bldg": {
+      "lat": 14.538867,
+      "lon": 120.985399,
+      "source": "nominatim",
+      "precision": "locality",
+      "matched": "1300, Zone 10, District 1, Pasay, Southern Manila District, Metro Manila, Philippines",
+      "ref": "?/?"
+    },
     "sm:moa-square": {
       "lat": 14.532405,
       "lon": 120.982674,
@@ -817,6 +825,14 @@
       "precision": "exact",
       "matched": "SM City Cabanatuan",
       "ref": "way/160105347"
+    },
+    "sm:sm-city-cagayan-de-oro": {
+      "lat": 8.486071,
+      "lon": 124.656805,
+      "source": "nominatim",
+      "precision": "locality",
+      "matched": "University of Science and Technology of Southern Philippines, C. M. Recto Avenue, Mambato, Barangay 26, Poblacion, Cagay",
+      "ref": "way/427550462"
     },
     "sm:sm-city-calamba": {
       "lat": 14.203185,
@@ -1362,6 +1378,14 @@
       "matched": "SM Southmall",
       "ref": "relation/14061902"
     },
+    "sm:smdc-air-mall": {
+      "lat": 14.562245,
+      "lon": 121.008631,
+      "source": "nominatim",
+      "precision": "locality",
+      "matched": "San Antonio Barangay Hall, Lumbayao Street, San Antonio, District I, Makati, Southern Manila District, Metro Manila, 120",
+      "ref": "node/255063472"
+    },
     "sm:smdc-breeze-mall": {
       "lat": 14.5437,
       "lon": 120.99465,
@@ -1435,6 +1459,14 @@
       "ref": "relation/149047"
     },
     "sm:smdc-strip-at-grass": {
+      "lat": 14.651055,
+      "lon": 121.048625,
+      "source": "nominatim",
+      "precision": "locality",
+      "matched": "Quezon City, Eastern Manila District, Metro Manila, Philippines",
+      "ref": "relation/106569"
+    },
+    "sm:smdc-strip-at-mezza": {
       "lat": 14.651055,
       "lon": 121.048625,
       "source": "nominatim",
@@ -1795,12 +1827,12 @@
       "ref": "relation/16667189"
     },
     "waltermart:san-jose": {
-      "lat": 15.327055,
-      "lon": 120.64504,
+      "lat": 15.797778,
+      "lon": 120.993717,
       "source": "nominatim",
       "precision": "exact",
-      "matched": "WalterMart, L. Cortez Street, Grace Isabel Village, San Jose, San Francisco, Alfonso, Concepcion, Tarlac, Central Luzon,",
-      "ref": "way/598237277"
+      "matched": "WalterMart, Maharlika Highway, Ramar Village, Ferdinand E. Marcos Poblacion, Santo Niño 1st, San Jose, Nueva Ecija, Cent",
+      "ref": "way/799736085"
     },
     "waltermart:san-pascual": {
       "lat": 13.786992,

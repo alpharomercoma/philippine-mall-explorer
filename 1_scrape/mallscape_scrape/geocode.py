@@ -68,6 +68,18 @@ _RATIO_CERTAIN = 1.0
 _RATIO_TIE = 0.02
 _TIE_DISTANCE_KM = 5.0
 
+# Where a match in Nominatim's address breakdown places a name. A town or a
+# province identifies a branch; a barangay or a street only narrows it down,
+# and several towns have a barangay by the same name as another town.
+_SETTLEMENT_KEYS = ("city", "town", "municipality", "village", "hamlet", "county", "state")
+_LOCAL_KEYS = ("suburb", "quarter", "neighbourhood", "city_district", "borough", "road")
+
+# Nominatim's place_rank rises with specificity: 4 is a country, 8 a region, 12
+# a city, 16 a town, 22 upwards a street or a building. Below a city there is
+# no sense in which the answer is where the mall is, and "Philippines" resolves
+# happily to a point in the Sibuyan Sea.
+_MIN_PLACE_RANK = 10
+
 # Overpass returns every named retail feature in the country in one call.
 _OVERPASS_QUERY = """
 [out:json][timeout:{timeout}];
@@ -135,7 +147,14 @@ def attach(malls: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     Returns the frame plus the keys still unplaceable, which the caller reports
     rather than swallows: a property missing from the map is a coverage fact.
     """
-    malls = malls.copy()
+    # Reset before writing anything. `iterrows` yields index labels, and
+    # `.at[label]` writes to every row carrying that label, so on a frame whose
+    # index repeats one property's coordinate lands on another's row without a
+    # word of complaint. Carrying a chain forward concatenates two frames that
+    # each count from zero, which is exactly that frame. See the pipeline's
+    # `ignore_index`: this is the second lock on the same door, because attach
+    # is what actually does the damage.
+    malls = malls.copy().reset_index(drop=True)
     for column in GEO_COLUMNS:
         if column not in malls.columns:
             malls[column] = None
@@ -316,7 +335,7 @@ def text_of(value: object) -> str | None:
     return text if text and text.lower() != "nan" else None
 
 
-def address_tails(address: str, limit: int = 3) -> list[str]:
+def address_tails(address: str, limit: int = 6) -> list[str]:
     """Progressively coarser versions of an address, most specific first.
 
     Philippine addresses are written most specific first, so dropping leading
@@ -324,9 +343,56 @@ def address_tails(address: str, limit: int = 3) -> list[str]:
     nothing at all for "Katipunan Avenue corner Escalar Street, Loyola Heights,
     Quezon City" because "corner Escalar Street" is not a street it knows, and
     everything for "Loyola Heights, Quezon City".
+
+    The coarse end is the end that answers, so the limit has to be generous
+    enough to reach the town. At three, a seven-part address asked three
+    questions about street corners and a subdivision, and never asked about
+    Pasay. The rungs are still tried most specific first, so a longer ladder
+    costs requests only for a property nothing else could place.
+
+    The country on its own is dropped rather than asked: it resolves, to the
+    centroid of the archipelago, which is a worse answer than none.
     """
     parts = [p.strip() for p in address.split(",") if p.strip()]
-    return [", ".join(parts[i:]) for i in range(1, len(parts))][:limit]
+    tails = [", ".join(parts[i:]) for i in range(1, len(parts))]
+    return [t for t in tails if normalize_name(t) != "philippines"][:limit]
+
+
+def with_country(query: str) -> str:
+    """Append the country unless the text already ends with it.
+
+    Nominatim answers a free-form query that names the country twice with an
+    empty list, not with the answer to the sensible reading. Scraped addresses
+    routinely end in "Philippines", so appending it unconditionally silently
+    disabled every coarser fallback for those properties: the ladder ran to the
+    bottom asking questions that could not be answered.
+    """
+    return query if normalize_name(query).endswith("philippines") else f"{query}, Philippines"
+
+
+def place_match(name: str, hit: dict) -> int:
+    """How well the hit's address explains the part of the name its own name did not.
+
+    A branch is usually named for where it is, and the venue name rarely repeats
+    that: OpenStreetMap calls them all "WalterMart". So whatever is left of the
+    property name after the venue name is accounted for has to be found in the
+    address, and *where* it is found is the whole point. 2 for a town or
+    province, 1 for a barangay or a street, 0 for nowhere.
+
+    This ranks candidates; it never rejects one. A name the address cannot
+    explain at all is still placed if it passed the checks that came before.
+    """
+    leftover = core_tokens(name) - core_tokens(hit.get("name") or "")
+    if not leftover:
+        return 2                       # the venue name accounted for all of it
+    address = hit.get("address") or {}
+    for level, keys in ((2, _SETTLEMENT_KEYS), (1, _LOCAL_KEYS)):
+        tokens: set[str] = set()
+        for key in keys:
+            tokens |= set(normalize_name(address.get(key) or "").split())
+        if leftover & tokens:
+            return level
+    return 0
 
 
 def cap_precision(precision: str, cap: str | None) -> str:
@@ -350,12 +416,12 @@ def geocode_one(fetcher: Fetcher, name: str, address: str | None, region: str | 
     address = text_of(address)
     attempts = []
     if address:
-        attempts.append((f"{name}, {address}, Philippines", True, None))
-    attempts.append((f"{name}, Philippines", True, None))
+        attempts.append((with_country(f"{name}, {address}"), True, None))
+    attempts.append((with_country(name), True, None))
     if address:
-        attempts.append((f"{address}, Philippines", False, "address"))
+        attempts.append((with_country(address), False, "address"))
         attempts.extend(
-            (f"{tail}, Philippines", False, "locality") for tail in address_tails(address)
+            (with_country(tail), False, "locality") for tail in address_tails(address)
         )
 
     reason = "no result"
@@ -367,18 +433,30 @@ def geocode_one(fetcher: Fetcher, name: str, address: str | None, region: str | 
                 "format": "jsonv2",
                 "countrycodes": "ph",
                 "limit": "5",
-                "addressdetails": "0",
+                # The address breakdown is what tells a town apart from a
+                # barangay of the same name. See place_match.
+                "addressdetails": "1",
             },
         )
-        for hit in results or []:
+        best = None
+        for order, hit in enumerate(results or []):
             lat, lon = float(hit["lat"]), float(hit["lon"])
-            if not in_bounds(lat, lon):
+            if not in_bounds(lat, lon) or int(hit.get("place_rank", 0)) < _MIN_PLACE_RANK:
                 continue
             # Same rule as the OSM tier: the name and the region are separate
             # kinds of evidence, and one of them has to be convincing.
             named = by_name and score(name, hit.get("name") or "") >= _RATIO_ACCEPT
             if not named and not region_agrees(region, lat, lon):
                 continue
+            # Rank rather than take the first. A region is a quarter of the
+            # country, so "the first result that is in the right region" is
+            # barely a choice at all, and it put two WalterMart branches on one
+            # coordinate. Nominatim's own order breaks ties, and only ties.
+            key = (int(named), place_match(name, hit) if by_name else 0, -order)
+            if best is None or key > best[0]:
+                best = (key, hit, lat, lon)
+        if best is not None:
+            _, hit, lat, lon = best
             # place_rank rises with specificity: 30 is a building, 26 a street,
             # under 22 a town or larger. Say which one we got instead of
             # implying every pin is equally precise.
@@ -473,5 +551,30 @@ def refresh(malls: pd.DataFrame, cache_dir: Path) -> tuple[dict[str, dict], str]
             lines.append(f"[geocode]   unresolved: {item}")
 
     save(entries)
+    lines.extend(collisions(entries))
     lines.append(f"[geocode] registry now holds {len(entries):,} entries -> {REGISTRY}")
     return entries, "\n".join(lines)
+
+
+def collisions(entries: dict[str, dict]) -> list[str]:
+    """Report properties that resolved to the same building.
+
+    A town centre is shared by design - that is what `locality` precision
+    means - but two properties claiming one building means at least one of them
+    is wrong, and it is invisible in the data: both rows look complete. On the
+    map it appears as a cluster of two, which is what a cluster of two is
+    supposed to look like. Naming it here is the only place it shows up.
+    """
+    claims: dict[tuple[str, str], list[str]] = {}
+    for key, entry in entries.items():
+        if entry.get("precision") == "locality" or not entry.get("ref"):
+            continue
+        claims.setdefault((entry["source"], entry["ref"]), []).append(key)
+    lines = []
+    for (source, ref), keys in sorted(claims.items()):
+        if len(keys) > 1:
+            lines.append(
+                f"[geocode]   collision: {', '.join(sorted(keys))} all resolved to "
+                f"{source} {ref}; at most one of them can be right"
+            )
+    return lines

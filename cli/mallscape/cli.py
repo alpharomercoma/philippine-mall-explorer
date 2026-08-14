@@ -42,14 +42,24 @@ def scrape(
 
 
 @app.command()
-def geocode(date: str = typer.Option(None, help="snapshot date, default newest usable")):
+def geocode(
+    date: str = typer.Option(None, help="snapshot date, default newest usable"),
+    offline: bool = typer.Option(
+        False, "--offline", help="re-apply the committed registry, no network"
+    ),
+):
     """Stage 1b. Resolve coordinates for properties the registry cannot place.
 
     Hits OpenStreetMap, updates the committed registry, and re-places the
     snapshot. Only needed after a scrape finds properties that are new.
+
+    `--offline` skips the lookup and only re-applies what the registry already
+    holds. That is the repair for a snapshot whose coordinates went to the
+    wrong rows: the registry is the record, so replaying it is deterministic
+    and costs nothing.
     """
     run_date = _resolve(date)
-    scrape_stage.geocode_run(run_date)
+    scrape_stage.geocode_run(run_date, offline=offline)
     storage.publish_latest(run_date)
 
 

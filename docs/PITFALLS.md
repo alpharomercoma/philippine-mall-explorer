@@ -276,3 +276,120 @@ map.
 Borrowed z-index numbers are global until contained. And when a fix reorders
 layers, look at every overlay that crosses the boundary it moved, because the
 one you were not testing is where it lands.
+
+
+## A write addressed by index label, on an index that repeats
+
+Scraping one chain carries the others forward, and the carry-forward joined two
+frames that each counted from zero. `pd.concat` keeps both, so the index read
+`0, 1, 2, ... , 0, 1, 2, 3`. Nothing downstream noticed, because the index is
+never written to the CSV and every other check passed: the row count was right,
+`(chain, mall_id)` was still unique, and no stage raised.
+
+Then the geocode step walked the frame with `iterrows` and assigned through
+`.at[i, "lat"]`. `iterrows` yields index labels, and `.at` writes to *every* row
+carrying one. Ortigas has exactly four properties and was scraped last, so its
+four coordinates were also written onto the first four SM rows. MOA Square and
+S Maison, both in Pasay, were drawn twelve kilometres away in Ortigas; Mall of
+Asia Arena Annex and NU MOA had no registry entry at all and inherited
+Greenhills and Tiendesitas rather than staying off the map. Their `geo_source`
+said `osm` because the last writer set that too, so the row was internally
+consistent and wrong. The map showed them clustered with the property whose
+coordinate they had taken, which is what a cluster of two is supposed to look
+like.
+
+The registry was correct the whole time. Comparing the shipped snapshot against
+it found all four in one pass, and nothing else - the check that should have
+existed from the start.
+
+**Rule:** address rows, not labels. `reset_index(drop=True)` before any
+label-based update, `ignore_index=True` on any concat that feeds one, and a
+uniqueness assertion at the snapshot boundary so the condition cannot travel.
+
+
+## A marker whose only affordance could not be taken
+
+Cluster markers answered a click by zooming to their contents. That is right
+until the contents share a coordinate, and several do: three wings of Lucky
+Chinatown are one building the operator publishes once, the SMDC strips are
+resolved only to their town, and two WalterMart branches matched the same OSM
+feature. No zoom separates points at the same point. Clicking stepped closer
+until it hit maximum zoom and then did nothing at all, on a bubble still reading
+"3" with no way to see what was in it. Seventeen of 292 plotted properties could
+not be opened by any route, including the property list beside the map, whose
+`focusOn` assumed zooming far enough always frees a point from its cluster.
+
+Two things made it survive. It looks like a rendering artefact rather than a
+dead control, so it invites a look at the styling instead of the handler. And
+the count is honest - the map is not wrong about there being three - so nothing
+in the data flags it.
+
+The fix is to test separability at closest zoom and, when a group fails, open it
+as a list rather than offering a zoom that cannot help. Swapping the popup
+between the list and one property then detaches the button being clicked, and
+Leaflet decides whether a click was the map's by walking up from its target: a
+detached target has no path back to the popup, so the click closed the popup it
+was navigating. The first e2e test passed against that, because a closing
+Leaflet popup stays in the DOM for the length of its fade and an assertion made
+immediately after the click reads the list it is about to lose.
+
+**Rule:** a control that cannot do what it offers is worse than no control. And
+when asserting on something that animates away, settle first - or the test pins
+the transient rather than the outcome.
+
+
+## The first result that passes is not the best result
+
+Nominatim answers "WalterMart San Jose, Philippines" with three WalterMarts.
+The first sits in *barangay* San Jose, in Concepcion, Tarlac. The third is the
+San Jose, Nueva Ecija branch, which is the one being asked about. The code took
+the first hit that cleared its checks, and the only check that hit had to clear
+was `region_agrees` - so a coordinate anywhere in north-luzon, a quarter of the
+country, was treated as corroboration. WalterMart San Jose was placed on top of
+WalterMart Concepcion, and the map drew the two of them as a cluster of two,
+which is exactly what a cluster of two is supposed to look like.
+
+The evidence to tell them apart was in the response and was being thrown away.
+`addressdetails=1` returns the address broken into fields, and the difference is
+which field carries the word: `quarter: San Jose, town: Concepcion` for the
+first, `city: San Jose, state: Nueva Ecija` for the third. So whatever the venue
+name does not account for has to be found in the address, and a match on a town
+outranks a match on a barangay or a street.
+
+Two details keep that from becoming a new source of missing pins. It ranks, it
+never rejects: WalterMart Macapagal is tagged `W.Mall` in Pasay and only its
+street carries "Macapagal", and it stays placed. And two properties resolving to
+the same building is now reported by name at the end of a refresh - a town
+centre is shared by design, a building is not.
+
+**Rule:** when a service returns several answers, rank them on the evidence it
+gave you. Accepting the first one that is not obviously wrong is a coin toss
+wearing a validation check.
+
+
+## A fallback ladder that could not reach the bottom
+
+Free-text geocoding falls back through progressively coarser versions of an
+address. Two independent faults meant it never arrived.
+
+Every rung had ", Philippines" appended, and scraped addresses routinely end in
+"Philippines" already. Nominatim answers a query naming the country twice with
+an empty list - not with the sensible reading, and not with an error. So for
+those properties every rung asked an unanswerable question and the whole ladder
+failed silently. `Makati City, Metro Manila, Philippines, Philippines` returns
+nothing; drop one and it returns Makati.
+
+The ladder was also cut at three rungs, counted from the specific end. A
+seven-part address spent all three asking about a street corner, a complex and a
+barangay, and never got to `1300 Pasay City`, which resolves. The coarse end is
+the end that answers, so a limit that trims it is trimming the only rungs with a
+job to do. Four properties were unplaced for this reason alone.
+
+The bottom rung is the country by itself, and it resolves happily - to a point
+in the Sibuyan Sea. It is inside the bounding box and agrees with any region, so
+nothing else in the chain would have stopped it. Ranks below a city are now
+refused outright.
+
+**Rule:** a fallback chain is only worth what its last rung returns. Test the
+bottom of it, not the top, and check that the bottom is not something that
+answers everything.

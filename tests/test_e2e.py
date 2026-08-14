@@ -575,3 +575,142 @@ def test_stat_tooltips_paint_above_the_controls(page):
     assert covered != bare, "the stat tooltip is painted behind the control bar"
     page.click("#tab-brands")
     page.wait_for_timeout(200)
+
+
+# ---------- clusters that no zoom can split ----------
+
+
+def _stacked_groups() -> list[list[str]]:
+    """Properties sharing one coordinate exactly, grouped, largest first.
+
+    Deliberately a cruder rule than the map's: the map groups by pixel cell at
+    closest zoom, so it also catches points a few metres apart. Everything this
+    finds is a subset of that, which is what makes it a cross-check rather than
+    a restatement of the code under test.
+    """
+    data = json.loads((SITE / _bundle_name()).read_text())
+    by_coord: dict[tuple, list[str]] = {}
+    for mall in data["malls"]:
+        if mall[5] is None or mall[6] is None:
+            continue
+        by_coord.setdefault((mall[5], mall[6]), []).append(mall[0])
+    groups = [names for names in by_coord.values() if len(names) > 1]
+    return sorted(groups, key=len, reverse=True)
+
+
+_FIRST_REACHABLE_CLUSTER = """() => {
+  const frame = document.getElementById('map').getBoundingClientRect();
+  const markers = [...document.querySelectorAll('#map .cluster')];
+  return markers.findIndex((el) => {
+    const box = el.getBoundingClientRect();
+    return box.left >= frame.left && box.right <= frame.right
+        && box.top >= frame.top && box.bottom <= frame.bottom;
+  });
+}"""
+
+
+_CLICK_BY_NAME = """(name) => {
+  const item = [...document.querySelectorAll('.maplist-item')]
+    .find((el) => el.querySelector('.name').textContent === name);
+  if (!item) throw new Error('property not in the map list: ' + name);
+  item.scrollIntoView();
+  item.click();
+}"""
+
+
+def test_every_property_stacked_on_one_coordinate_is_reachable(page):
+    """Several properties share a coordinate: three wings of Lucky Chinatown are
+    one building, and the SMDC strips are resolved only to their town. They can
+    never be separated by zooming, so the map used to show a bubble reading "3"
+    that answered a click by zooming a little and staying a "3", with no way at
+    all to read what was inside it.
+
+    Every one of them has to be reachable. This walks the whole set rather than
+    a sample, because the failure was per-group and silent.
+    """
+    groups = _stacked_groups()
+    assert groups, "no co-located properties in the bundle; this test would prove nothing"
+    _open_map(page)
+
+    for names in groups:
+        for name in names:
+            page.evaluate(_CLICK_BY_NAME, name)
+            # One popup, and it names this property. Leaflet keeps a closing
+            # popup in the DOM for the length of its fade, so "the popup" is
+            # only unambiguous once that has gone.
+            page.wait_for_function(
+                """(name) => {
+                    const popups = document.querySelectorAll('.leaflet-popup-content');
+                    return popups.length === 1 && popups[0].innerText.includes(name);
+                }""",
+                arg=name,
+                timeout=10000,
+            )
+            # It opened on the property asked for, and says it is one of several
+            # here rather than presenting itself as the only thing at this point.
+            back = page.locator(".leaflet-popup-content .popup-back")
+            assert back.count() == 1, (
+                f"{name} opened without a way back to the {len(names)} here; "
+                f"popup was {page.locator('.leaflet-popup-content').inner_html()[:300]}"
+            )
+            back.click()
+            # Settle before reading. Swapping the popup's contents detaches the
+            # button that was clicked, and a popup closing over that leaves the
+            # list on screen just long enough to assert against while it fades.
+            page.wait_for_timeout(400)
+            rows = page.locator(".leaflet-popup-content .stack-item")
+            assert rows.count() == len(names), (
+                f"{name}: after going back the stack lists {rows.count()} "
+                f"properties, expected {len(names)}"
+            )
+            listed = rows.all_inner_texts()
+            for other in names:
+                assert any(other in text for text in listed), f"{other} missing from its own stack"
+
+            # And back in the other direction: the list is the only way into
+            # these properties, so its rows have to open them.
+            rows.filter(has_text=name).first.click()
+            page.wait_for_timeout(400)
+            detail = page.locator(".leaflet-popup-content")
+            assert detail.count() == 1, f"{name}: selecting it from the list closed the popup"
+            assert name in detail.inner_text()
+            assert page.locator(".leaflet-popup-content .popup-back").count() == 1
+
+    page.click("#tab-brands")
+    page.wait_for_timeout(200)
+
+
+def test_a_cluster_click_is_never_a_dead_click(page):
+    """Drill into the map from the landing view. Every click on a cluster has to
+    change something: either it splits and more marks appear, or it is one of
+    the stacked ones and opens its list. A click that leaves the map exactly as
+    it was is the bug this pins down."""
+    _open_map(page)
+    page.wait_for_timeout(1200)          # let the opening fit settle
+    for step in range(8):
+        # Leaflet keeps marks outside the visible box in the DOM, and those
+        # cannot be clicked. Ask the page which cluster the reader could reach.
+        nth = page.evaluate(_FIRST_REACHABLE_CLUSTER)
+        if nth < 0:
+            # Nothing grouped is left in view, so the drill ended on individual
+            # properties rather than on a cluster that would not open.
+            assert page.locator("#map .leaflet-overlay-pane path").count() > 0
+            break
+        marker = page.locator("#map .cluster").nth(nth)
+        stacked = "cluster--stacked" in (marker.get_attribute("class") or "")
+        before = _plotted(page)
+        marker.click()
+        page.wait_for_timeout(900)
+        if stacked:
+            assert page.locator(".leaflet-popup-content .stack-item").count() > 1, (
+                f"step {step}: a stacked cluster was clicked and listed nothing"
+            )
+            page.keyboard.press("Escape")
+            break
+        assert _plotted(page) > before, (
+            f"step {step}: clicking a cluster left the map with {before} marks unchanged"
+        )
+    else:
+        pytest.fail("drilled eight times without reaching a single property or a stack")
+    page.click("#tab-brands")
+    page.wait_for_timeout(200)

@@ -86,6 +86,17 @@ def validate_snapshot_frames(malls: pd.DataFrame, stores: pd.DataFrame) -> None:
         )
     if malls.duplicated(mall_key).any():
         raise ValueError("snapshot contains duplicate (chain, mall_id) mall keys")
+    # A repeated index label is not a schema problem you can see in the CSV --
+    # the index is not even written out -- but any label-based write upstream
+    # silently lands on every row that shares the label. Caught here it is one
+    # loud failure; uncaught it is a plausible-looking coordinate on the wrong
+    # property. Frames arriving from a concat are the ones at risk.
+    for name, frame in (("malls", malls), ("stores", stores)):
+        if not frame.index.is_unique:
+            raise ValueError(
+                f"snapshot {name} frame has a non-unique index; reindex before "
+                f"writing or label-based updates will corrupt rows"
+            )
     mall_keys = pd.MultiIndex.from_frame(malls[mall_key])
     store_keys = pd.MultiIndex.from_frame(stores[mall_key])
     orphaned = store_keys.difference(mall_keys)

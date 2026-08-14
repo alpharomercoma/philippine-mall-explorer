@@ -13,6 +13,9 @@
  * Stable  Clustering projects each point at an explicit zoom, so groups depend
  *         on zoom alone. Panning cannot reshuffle them, which is what makes the
  *         map feel steady rather than alive.
+ * Honest  Some properties share a coordinate outright, so no zoom separates
+ *         them. Those clusters open as a list instead of pretending a click
+ *         will split them. See `separable`.
  * Safe    Every label and popup is built from DOM nodes with textContent. The
  *         page's no-innerHTML rule does not stop at the edge of the map.
  */
@@ -37,6 +40,8 @@ let maxListings = 1;
 let tilesFailed = false;
 let onTileError = null;
 const markerByIndex = new Map();   // only individual points; clusters have no one index
+const stackByIndex = new Map();    // every point inside a cluster no zoom can split
+let pendingFocus = null;           // a property to open as soon as it has been drawn
 
 /* ---------- lazy library load ---------- */
 
@@ -83,19 +88,41 @@ function loadLeaflet() {
 
 /* ---------- geometry ---------- */
 
+function cellKey(point, zoom) {
+  const pixel = map.project([point.lat, point.lon], zoom);
+  return `${Math.floor(pixel.x / CLUSTER_CELL)}:${Math.floor(pixel.y / CLUSTER_CELL)}`;
+}
+
 /** Group points into fixed pixel cells at one zoom level.
  *  Projecting at an explicit zoom rather than the current view means the result
  *  is a pure function of (points, zoom): pan does not change it. */
 function clusterAt(zoom) {
   const cells = new Map();
   for (const point of points) {
-    const pixel = map.project([point.lat, point.lon], zoom);
-    const key = `${Math.floor(pixel.x / CLUSTER_CELL)}:${Math.floor(pixel.y / CLUSTER_CELL)}`;
+    const key = cellKey(point, zoom);
     const cell = cells.get(key);
     if (cell) cell.push(point);
     else cells.set(key, [point]);
   }
   return [...cells.values()];
+}
+
+/** Whether zooming can ever break this group apart.
+ *
+ *  Closest zoom is the generous test: a group still in one cell there is in one
+ *  cell everywhere. Several groups fail it, and none of them is a defect in the
+ *  map. Three wings of Lucky Chinatown are one building and the operator
+ *  publishes one coordinate for all three. The SMDC strips are only resolved to
+ *  their town, so a whole set of them shares its centre. For those, "zoom in to
+ *  separate them" is advice that cannot be taken, and a marker that offers it
+ *  spends the reader's clicks and gives nothing back. */
+function separable(group) {
+  const cells = new Set();
+  for (const point of group) {
+    cells.add(cellKey(point, MAX_ZOOM));
+    if (cells.size > 1) return true;
+  }
+  return false;
 }
 
 /** Radius encoding listing count. Area, not radius, carries the value, so the
@@ -112,36 +139,119 @@ function boundsOf(group) {
 
 /* ---------- drawing ---------- */
 
-function clusterIcon(count) {
+function clusterIcon(count, stacked) {
   const node = document.createElement('span');
   node.className = 'cluster-label';
   node.textContent = String(count);
   const size = count >= 100 ? 46 : count >= 25 ? 40 : 34;
   return L.divIcon({
     html: node,                    // an Element, so Leaflet appends rather than parses
-    className: 'cluster',
+    // A stacked cluster answers a click with a list rather than a zoom, so it
+    // says so before it is clicked instead of looking identical and behaving
+    // differently.
+    className: stacked ? 'cluster cluster--stacked' : 'cluster',
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
 }
 
+/** Swap what the popup shows, without the click escaping to the map.
+ *
+ *  Redrawing the popup detaches the button that was clicked, and Leaflet decides
+ *  whether a click belongs to the map by walking up from its target. A detached
+ *  target has no path back to the popup, so the click reads as a click on the
+ *  map and closes the very popup it was meant to navigate. Stopping it here is
+ *  what keeps the two views reachable from each other. */
+function swapTo(marker, point, event) {
+  event.stopPropagation();
+  marker.showInStack(point);
+}
+
+/** The list behind a stacked cluster, or one member's own popup with a way back.
+ *
+ *  This module still knows nothing about brands or operators: the rows carry the
+ *  name and count every point already has, and the detail is whatever the
+ *  caller's builder returns. */
+function stackList(group, marker, selected) {
+  if (selected) {
+    const box = document.createElement('div');
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'popup-back';
+    back.textContent = `Back to all ${group.length} here`;
+    back.addEventListener('click', (event) => swapTo(marker, null, event));
+    box.append(back, popupFor(selected));
+    return box;
+  }
+
+  const box = document.createElement('div');
+  box.className = 'popup';
+  const title = document.createElement('strong');
+  // Say which kind of coincidence this is. Sharing a building is a fact about
+  // the properties; sharing a town centre is a limit of what we could resolve,
+  // and reading one as the other would be misleading.
+  title.textContent = group.every((p) => p.approximate)
+    ? `${group.length} properties resolved to this locality`
+    : `${group.length} properties at this location`;
+
+  const meta = document.createElement('p');
+  meta.className = 'popup-meta';
+  meta.textContent = 'Zooming cannot separate them. Select one to see it.';
+
+  const list = document.createElement('ul');
+  list.className = 'stack';
+  for (const point of [...group].sort((a, b) => b.listings - a.listings)) {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'stack-item';
+    const name = document.createElement('span');
+    name.textContent = point.name;
+    const count = document.createElement('span');
+    count.className = 'stack-count';
+    count.textContent = `${point.listings}`;
+    button.append(name, count);
+    button.addEventListener('click', (event) => swapTo(marker, point, event));
+    item.appendChild(button);
+    list.appendChild(item);
+  }
+  box.append(title, meta, list);
+  return box;
+}
+
 function drawCluster(group) {
+  const stacked = !separable(group);
   const marker = L.marker(boundsOf(group).getCenter(), {
-    icon: clusterIcon(group.length),
+    icon: clusterIcon(group.length, stacked),
     keyboard: true,
-    title: `${group.length} properties. Select to zoom in.`,
+    title: stacked
+      ? `${group.length} properties in one spot. Select to list them.`
+      : `${group.length} properties. Select to zoom in.`,
     alt: `${group.length} properties`,
   });
+
+  if (stacked) {
+    // Bound as a function so every open rebuilds from `shown`, which reopening
+    // resets. Leaflet re-invokes it on update(), so selecting a row is a
+    // content swap in place rather than a second popup.
+    let shown = null;
+    marker.showInStack = (point) => {
+      shown = point;
+      if (marker.isPopupOpen()) marker.getPopup().update();
+      else marker.openPopup();
+    };
+    marker.bindPopup(() => stackList(group, marker, shown), {
+      maxWidth: 280,
+      closeButton: true,
+    });
+    marker.on('popupclose', () => { shown = null; });
+    return marker;
+  }
+
   marker.on('click', () => {
-    // Zooming to the group's own bounds is what a reader expects, except when
-    // the points sit on top of each other and the bounds are a single spot;
-    // then step in far enough for the cell to split.
-    const bounds = boundsOf(group);
-    if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
-      map.setView(bounds.getCenter(), Math.min(map.getZoom() + 3, MAX_ZOOM));
-    } else {
-      map.fitBounds(bounds, { padding: FIT_PADDING, maxZoom: MAX_ZOOM });
-    }
+    // Zooming to the group's own bounds is what a reader expects. Points on top
+    // of each other never reach here: `separable` sent them to the list above.
+    map.fitBounds(boundsOf(group), { padding: FIT_PADDING, maxZoom: MAX_ZOOM });
   });
   return marker;
 }
@@ -176,6 +286,7 @@ function draw() {
   if (!map) return;
   markerLayer.clearLayers();
   markerByIndex.clear();
+  stackByIndex.clear();
   const zoom = map.getZoom();
   for (const group of clusterAt(zoom)) {
     if (group.length === 1) {
@@ -183,9 +294,16 @@ function draw() {
       markerByIndex.set(group[0].index, marker);
       markerLayer.addLayer(marker);
     } else {
-      markerLayer.addLayer(drawCluster(group));
+      const marker = drawCluster(group);
+      // Only stacked clusters are worth remembering: they are the ones a
+      // reader can be sent to and find nothing of their own to open.
+      if (marker.showInStack) {
+        for (const point of group) stackByIndex.set(point.index, marker);
+      }
+      markerLayer.addLayer(marker);
     }
   }
+  applyFocus();
 }
 
 /* ---------- public API ---------- */
@@ -242,6 +360,9 @@ export async function ensure({ container, tiles, attribution, referrerPolicy, on
   // Recluster on zoom only: pan cannot change the grouping, so redrawing on
   // move would be work with no visible effect.
   map.on('zoomend', draw);
+  // A focus that needed no redraw still has to be honoured, and one whose zoom
+  // was already correct produces a move and nothing else.
+  map.on('moveend', applyFocus);
   void attribution;   // rendered by the caller alongside the other map notes
   return map;
 }
@@ -250,6 +371,10 @@ export async function ensure({ container, tiles, attribution, referrerPolicy, on
  *  filters changed and wrong when the reader is mid-exploration. */
 export function update(nextPoints, { fit = false } = {}) {
   points = nextPoints;
+  // A focus is a request against the set that was on screen when it was made.
+  // Filters replace that set, so drop it rather than let it open later against
+  // a map the reader has since changed.
+  pendingFocus = null;
   maxListings = points.reduce((max, p) => Math.max(max, p.listings), 1);
   if (!map) return;
   draw();
@@ -260,17 +385,63 @@ export function setPopupBuilder(builder) {
   popupFor = builder;
 }
 
-/** Zoom to one property and open its popup. Zooming in far enough guarantees
- *  it is no longer inside a cluster, so there is always a marker to open. */
+/** The closest-in zoom needed to leave this point alone in its cell, or null
+ *  when no zoom does. Cheap enough to run on a click: a few hundred
+ *  projections, and only while the reader waits for a map to move. */
+function isolationZoom(point) {
+  for (let zoom = FOCUS_ZOOM; zoom <= MAX_ZOOM; zoom += 1) {
+    const key = cellKey(point, zoom);
+    if (!points.some((other) => other.index !== point.index && cellKey(other, zoom) === key)) {
+      return zoom;
+    }
+  }
+  return null;
+}
+
+/** Open whatever the pending focus can be opened through, once it is drawn.
+ *
+ *  Deliberately not a one-shot `moveend` handler. Registering one before
+ *  calling setView means an animation already in flight -- the fit that runs
+ *  when the panel opens, most reliably -- satisfies it early, and the focus
+ *  lands against the marker set of the zoom being left rather than the one
+ *  being entered. Holding the request as state instead makes the outcome
+ *  independent of which move finishes first. */
+function applyFocus() {
+  if (!pendingFocus) return;
+  const point = pendingFocus;
+  const marker = markerByIndex.get(point.index);
+  if (marker) {
+    pendingFocus = null;
+    marker.openPopup();
+    return;
+  }
+  const stack = stackByIndex.get(point.index);
+  if (stack) {
+    pendingFocus = null;
+    stack.showInStack(point);
+  }
+}
+
+/** Zoom to one property and open its popup.
+ *
+ *  Zooming used to be assumed to free the property from its cluster. It does
+ *  not: a property sharing a coordinate with its neighbours has no marker of
+ *  its own at any zoom, and the reader who followed a brand here was left
+ *  looking at a number that opened nothing. So go to the zoom that actually
+ *  isolates it, and when none does, open the cluster on the property asked for. */
 export function focusOn(point) {
   if (!map) return;
-  map.once('moveend', () => {
-    // A zoom change redraws through zoomend, which runs before moveend, so the
-    // marker map is current by the time this fires either way.
-    const marker = markerByIndex.get(point.index);
-    if (marker) marker.openPopup();
-  });
-  map.setView([point.lat, point.lon], FOCUS_ZOOM);
+  const isolation = isolationZoom(point);
+  const zoom = isolation === null ? FOCUS_ZOOM : isolation;
+  // Whether the marker set on screen is already the one this point will be
+  // found in. Asking before the move, because the move is what changes it.
+  const drawn = map.getZoom() === zoom;
+  pendingFocus = point;
+  map.setView([point.lat, point.lon], zoom);
+  // Selecting a second property at the same spot moves the map nowhere, and a
+  // view that does not move reports nothing to wait for. Resolve it here
+  // instead of leaving the popup on whichever property was chosen first.
+  if (drawn) applyFocus();
 }
 
 export function fitToPoints() {

@@ -12,21 +12,21 @@ Raw listings are retained; these signals describe uncertainty rather than removi
 
 ### Locations
 
-294 of 303 properties have a coordinate.
+296 of 303 properties have a coordinate.
 
 | source    | properties |
 |-----------|-----------:|
-| nominatim |         85 |
+| nominatim |         90 |
 | operator  |         57 |
-| osm       |        152 |
+| osm       |        149 |
 
 | precision | properties |
 |-----------|-----------:|
 | address   |         21 |
-| exact     |        253 |
-| locality  |         20 |
+| exact     |        251 |
+| locality  |         24 |
 
-Without a coordinate, and therefore absent from the map: robinsons:cybergate-bacolod, sm:sm-city-cagayan-de-oro, sm:smby-amusement-park, sm:smdc-air-mall, sm:smdc-strip-at-mezza, waltermart:bicutan, waltermart:erodriguez, waltermart:sta-rosa-bel-air, waltermart:the-junction.
+Without a coordinate, and therefore absent from the map: robinsons:cybergate-bacolod, sm:nu-mall-of-asia-building, sm:smby-amusement-park, waltermart:bicutan, waltermart:erodriguez, waltermart:sta-rosa-bel-air, waltermart:the-junction.
 
 ## Chains
 

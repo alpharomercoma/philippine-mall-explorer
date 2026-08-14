@@ -68,8 +68,16 @@ def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd
     malls_df["scraped_at"] = run_date
     stores_df["scraped_at"] = run_date
     if prev_malls is not None and partial:
-        malls_df = pd.concat([prev_malls[~prev_malls["chain"].isin(chains)], malls_df])
-        stores_df = pd.concat([prev_stores[~prev_stores["chain"].isin(chains)], stores_df])
+        # ignore_index because both sides count from zero: without it the joined
+        # frame has each low label twice, and any later `.at[label] = ...` write
+        # hits both rows. That is how four Pasay properties ended up on Ortigas
+        # coordinates, drawn on the map as confidently as the correct ones.
+        malls_df = pd.concat(
+            [prev_malls[~prev_malls["chain"].isin(chains)], malls_df], ignore_index=True
+        )
+        stores_df = pd.concat(
+            [prev_stores[~prev_stores["chain"].isin(chains)], stores_df], ignore_index=True
+        )
 
     malls_df = place(malls_df)
 
@@ -105,14 +113,21 @@ def place(malls_df: pd.DataFrame) -> pd.DataFrame:
     return malls_df
 
 
-def geocode_run(run_date: str) -> pd.DataFrame:
+def geocode_run(run_date: str, offline: bool = False) -> pd.DataFrame:
     """Stage 1b. Resolve missing coordinates over the network and re-place the
-    snapshot, without re-scraping any directory."""
+    snapshot, without re-scraping any directory.
+
+    `offline` skips the lookup and replays the committed registry alone, which
+    is what repairs a snapshot whose coordinates were written to the wrong rows.
+    """
     malls_df = storage.read(run_date, storage.SCRAPE, "malls")
     if malls_df is None:
         raise SystemExit(f"no stage 1 malls table for {run_date}; run `mallscape scrape` first")
-    _, log = geocode.refresh(malls_df, storage.cache_dir(run_date, "geocode"))
-    print(log)
+    if offline:
+        print("[geocode] offline: re-applying the committed registry, no lookups")
+    else:
+        _, log = geocode.refresh(malls_df, storage.cache_dir(run_date, "geocode"))
+        print(log)
     malls_df = place(malls_df)
     storage.write(run_date, storage.SCRAPE, "malls", malls_df)
     return malls_df

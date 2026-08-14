@@ -182,6 +182,12 @@ def test_partial_scrape_does_not_drop_other_chains(snapshot, monkeypatch):
     # carried rows keep their real date; only the rescraped chain is restamped
     assert set(malls[malls.chain == "sm"].scraped_at) == {"2026-01-01"}
     assert set(malls[malls.chain == "ayala"].scraped_at) == {"2026-01-02"}
+    # and they keep their coordinates. Carrying forward joins two frames that
+    # both count from zero, and the geocode step used to write by index label,
+    # so the freshly scraped chain overwrote the carried rows sharing a label.
+    carried = malls[malls.mall_id == "sm-a"].iloc[0]
+    assert (carried.lat, carried.lon) == (14.55, 121.02)
+    assert carried.geo_source == "operator"
 
 
 def test_asset_urls_carry_a_version_that_tracks_their_contents(snapshot, tmp_path, monkeypatch):

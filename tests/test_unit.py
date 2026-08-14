@@ -545,3 +545,144 @@ class TestGeocoding:
         twice, missing_again = geocode.attach(once)
         assert missing == missing_again
         assert twice.equals(once)
+
+    def test_attach_writes_to_rows_not_to_index_labels(self, monkeypatch):
+        """A carried-forward frame has repeated index labels, and `.at[label]`
+        writes to every row that carries one. That silently moved four SM
+        properties in Pasay onto Ortigas coordinates: same label, last write
+        wins, no error. attach must address rows, not labels."""
+        import pandas as pd
+
+        monkeypatch.setattr(geocode, "load", lambda: {
+            "ortigas:x": {"lat": 14.60, "lon": 121.04, "source": "osm", "precision": "exact"},
+        })
+        carried = pd.DataFrame({
+            "chain": ["sm"], "mall_id": ["moa"],
+            "lat": [14.53], "lon": [120.98],
+            "geo_source": ["operator"], "geo_precision": ["exact"],
+        })
+        fresh = pd.DataFrame({
+            "chain": ["ortigas"], "mall_id": ["x"],
+            "lat": [None], "lon": [None],
+            "geo_source": [None], "geo_precision": [None],
+        })
+        frame = pd.concat([carried, fresh])
+        assert not frame.index.is_unique          # the condition that triggered it
+
+        placed, _ = geocode.attach(frame)
+        sm = placed[placed.chain == "sm"].iloc[0]
+        ortigas = placed[placed.chain == "ortigas"].iloc[0]
+        assert (sm.lat, sm.lon) == (14.53, 120.98)      # operator coordinates kept
+        assert sm.geo_source == "operator"
+        assert (ortigas.lat, ortigas.lon) == (14.60, 121.04)
+
+
+class TestNominatimQueries:
+    """Two defects in the Nominatim tier, both found by reading what the
+    service actually returned rather than what the code assumed it would."""
+
+    # The real three answers to "WalterMart San Jose, Philippines". Only the
+    # last is the San Jose branch; the other two sit in a barangay of that name.
+    SAN_JOSE_HITS: ClassVar[list] = [
+        {
+            "name": "WalterMart", "place_rank": 30, "lat": "15.3270548", "lon": "120.6450405",
+            "osm_type": "way", "osm_id": 598237277, "display_name": "WalterMart, Concepcion, Tarlac",
+            "address": {"road": "L. Cortez Street", "quarter": "San Jose", "suburb": "San Francisco",
+                        "village": "Alfonso", "town": "Concepcion", "state": "Tarlac"},
+        },
+        {
+            "name": "WalterMart", "place_rank": 30, "lat": "14.6714724", "lon": "120.5230916",
+            "osm_type": "way", "osm_id": 2, "display_name": "WalterMart, Balanga, Bataan",
+            "address": {"road": "Roman Superhighway", "suburb": "San Jose",
+                        "village": "Bagong Silang", "city": "Balanga", "state": "Bataan"},
+        },
+        {
+            "name": "WalterMart", "place_rank": 30, "lat": "15.7977778", "lon": "120.9937167",
+            "osm_type": "way", "osm_id": 3, "display_name": "WalterMart, San Jose, Nueva Ecija",
+            "address": {"road": "Maharlika Highway", "village": "Santo Niño 1st",
+                        "city": "San Jose", "state": "Nueva Ecija"},
+        },
+    ]
+
+    class FakeFetcher:
+        """Answers one query and records every query it was asked."""
+
+        def __init__(self, answers):
+            self.answers = answers
+            self.asked: list[str] = []
+
+        def get_json(self, url, params=None):
+            self.asked.append(params["q"])
+            return self.answers.get(params["q"], [])
+
+    def test_a_branch_is_placed_in_its_own_town_not_a_barangay_of_that_name(self):
+        """Nominatim ranked a WalterMart in barangay San Jose, Concepcion above
+        the one in San Jose, Nueva Ecija. Taking the first result that agreed
+        with a region as broad as north-luzon put two distinct branches on one
+        coordinate, and the map merged them into a bubble reading "2".
+
+        Where the name runs out, the address has to take over: a match on the
+        town outranks a match on a barangay or a street."""
+        fetcher = self.FakeFetcher({"WalterMart San Jose, Philippines": self.SAN_JOSE_HITS})
+        entry, reason = geocode.geocode_one(fetcher, "WalterMart San Jose", None, "north-luzon")
+        assert reason == ""
+        assert entry["ref"] == "way/3"
+        assert (entry["lat"], entry["lon"]) == (15.797778, 120.993717)
+
+    def test_a_name_the_address_cannot_explain_is_still_placed(self):
+        """The counterweight: WalterMart Macapagal is tagged W.Mall and sits in
+        Pasay, so neither the venue name nor the town carries "Macapagal". The
+        street does, and a street is enough. Ranking must not become a filter."""
+        hit = {
+            "name": "W.Mall", "place_rank": 30, "lat": "14.532443", "lon": "120.988702",
+            "osm_type": "way", "osm_id": 661740634, "display_name": "W.Mall, Pasay",
+            "address": {"road": "President Diosdado Macapagal Boulevard", "city": "Pasay",
+                        "region": "Metro Manila"},
+        }
+        fetcher = self.FakeFetcher({"WalterMart Macapagal, Philippines": [hit]})
+        entry, reason = geocode.geocode_one(fetcher, "WalterMart Macapagal", None, "metro-manila")
+        assert reason == ""
+        assert entry["ref"] == "way/661740634"
+
+    def test_the_country_is_never_named_twice(self):
+        """Scraped addresses often end in "Philippines" already, and Nominatim
+        answers a query naming the country twice with nothing at all. That
+        silently disabled the whole address fallback: every coarser attempt for
+        an SM property asked a question that could not be answered."""
+        fetcher = self.FakeFetcher({})
+        geocode.geocode_one(
+            fetcher, "SM City CDO Uptown",
+            "Gran Via St., Uptown Carmen, Cagayan de Oro, Misamis Oriental, Philippines",
+            "mindanao",
+        )
+        assert fetcher.asked, "no query was issued"
+        for query in fetcher.asked:
+            assert not query.lower().endswith("philippines, philippines"), query
+            assert query.lower().endswith("philippines"), query
+
+    def test_the_ladder_reaches_the_town_but_never_the_country(self):
+        """The coarse end of the ladder is the end that resolves. Asking only
+        the three most specific tails of a long address meant the town was
+        never asked for: every rung failed and the property went unplaced,
+        while "1300 Pasay City, Philippines" would have answered.
+
+        The last rung is the country itself, which answers with the centroid of
+        the archipelago. That one must not be asked at all."""
+        address = ("Coral Way cor., J.W. Diokno Blvd., Mall of Asia Complex, "
+                   "Brgy. 076 Zone 10, CBP 1-A, 1300 Pasay City, Philippines")
+        tails = geocode.address_tails(address)
+        assert any("Pasay City" in t and "CBP" not in t for t in tails), tails
+        assert all(geocode.normalize_name(t) != "philippines" for t in tails), tails
+
+    def test_a_country_sized_answer_is_not_a_location(self):
+        """Nominatim answers "Philippines" with the whole country at place_rank
+        4. It is inside the bounding box and it agrees with any region, so
+        nothing else in the chain would have stopped it."""
+        country = {
+            "name": "Philippines", "place_rank": 4, "lat": "12.7503486", "lon": "122.7312101",
+            "osm_type": "relation", "osm_id": 443174, "display_name": "Philippines", "address": {},
+        }
+        fetcher = self.FakeFetcher({"Some Unknown Mall, Philippines": [country]})
+        entry, reason = geocode.geocode_one(fetcher, "Some Unknown Mall", None, None)
+        assert entry is None, entry
+        assert reason
