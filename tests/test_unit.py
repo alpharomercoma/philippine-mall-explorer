@@ -686,3 +686,58 @@ class TestNominatimQueries:
         entry, reason = geocode.geocode_one(fetcher, "Some Unknown Mall", None, None)
         assert entry is None, entry
         assert reason
+
+    def test_a_malformed_rank_skips_the_hit_rather_than_the_run(self):
+        """Every candidate's place_rank is read now, not just the chosen one, so
+        a hit carrying null or "" there took the whole refresh down with it -
+        and a refresh saves at the end, so everything already resolved went with
+        it. One unusable hit is worth one skipped hit."""
+        good = {
+            "name": "SM City Bacoor", "place_rank": 30, "lat": "14.4452", "lon": "120.9504",
+            "osm_type": "way", "osm_id": 1, "display_name": "SM City Bacoor", "address": {},
+        }
+        for broken in (None, "", "thirty", {}):
+            hits = [dict(good, place_rank=broken, osm_id=99), good]
+            fetcher = self.FakeFetcher({"SM City Bacoor, Philippines": hits})
+            entry, _ = geocode.geocode_one(fetcher, "SM City Bacoor", None, None)
+            assert entry is not None, f"place_rank={broken!r} lost a usable hit"
+            assert entry["ref"] == "way/1", f"place_rank={broken!r} chose the malformed hit"
+
+    def test_a_name_with_nothing_distinctive_corroborates_nothing(self):
+        """place_match reads an empty leftover as "the venue name accounted for
+        all of it". That is true for "SM City" inside "SM City Cebu" and false
+        for a property whose name is empty or entirely generic: there was never
+        anything to account for, so it must not score as the strongest evidence
+        available."""
+        hit = {"name": "WalterMart", "address": {"city": "Pasay"}}
+        assert geocode.place_match("", hit) == 0
+        assert geocode.place_match("The Mall", hit) == 0            # all generic words
+        assert geocode.place_match("SM City", {"name": "SM City Cebu", "address": {}}) == 2
+
+    def test_a_property_with_nothing_to_search_is_not_searched(self):
+        """Without a name the only query left was ", Philippines"."""
+        fetcher = self.FakeFetcher({})
+        entry, reason = geocode.geocode_one(fetcher, "", None, "metro-manila")
+        assert entry is None
+        assert fetcher.asked == [], fetcher.asked
+        assert reason
+
+    def test_a_malformed_coordinate_skips_the_hit_rather_than_the_run(self):
+        """The same lesson as place_rank, one line earlier. `float(hit["lat"])`
+        runs before any validation, so a hit whose lat is absent or not a number
+        ended the run and discarded every property resolved before it."""
+        good = {
+            "name": "SM City Bacoor", "place_rank": 30, "lat": "14.4452", "lon": "120.9504",
+            "osm_type": "way", "osm_id": 1, "display_name": "SM City Bacoor", "address": {},
+        }
+        broken = [
+            dict(good, lat="not-a-number", osm_id=91),
+            dict(good, lat=None, osm_id=92),
+            {k: v for k, v in good.items() if k != "lat"} | {"osm_id": 93},
+            dict(good, lon="", osm_id=94),
+        ]
+        for bad in broken:
+            fetcher = self.FakeFetcher({"SM City Bacoor, Philippines": [bad, good]})
+            entry, _ = geocode.geocode_one(fetcher, "SM City Bacoor", None, None)
+            assert entry is not None, f"{bad.get('lat')!r}/{bad.get('lon')!r} lost a usable hit"
+            assert entry["ref"] == "way/1", f"{bad.get('lat')!r} chose the malformed hit"

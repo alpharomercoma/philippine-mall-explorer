@@ -381,8 +381,24 @@ def place_match(name: str, hit: dict) -> int:
 
     This ranks candidates; it never rejects one. A name the address cannot
     explain at all is still placed if it passed the checks that came before.
+
+    Known limit: a token overlap, not a name match. "San Jose del Monte" scores
+    a settlement match for "WalterMart San Jose", so it would outrank a correct
+    candidate whose only evidence is its street. Tightening this to an exact
+    match is not the fix - the tokens are unioned across every settlement field,
+    so the genuinely correct hit carries its barangay and province too and would
+    stop matching as well. Telling those apart needs per-field comparison, which
+    is more machinery than the one collision this was built for justifies. No
+    property in the current data is placed wrongly by it; a future one could be.
     """
-    leftover = core_tokens(name) - core_tokens(hit.get("name") or "")
+    ours = core_tokens(name)
+    if not ours:
+        # Nothing distinctive to place. An empty leftover below means the venue
+        # name accounted for everything; here it means there was nothing to
+        # account for, which is the absence of evidence rather than the best of
+        # it, and must not outrank a candidate the address actually explains.
+        return 0
+    leftover = ours - core_tokens(hit.get("name") or "")
     if not leftover:
         return 2                       # the venue name accounted for all of it
     address = hit.get("address") or {}
@@ -393,6 +409,34 @@ def place_match(name: str, hit: dict) -> int:
         if leftover & tokens:
             return level
     return 0
+
+
+def coords_of(hit: dict) -> tuple[float, float] | None:
+    """The hit's coordinate, or None when it is absent or not a number.
+
+    Parsed before anything validates the hit, so a single malformed pair used to
+    raise and end the run for the same reason a malformed rank did. See
+    `place_rank_of`: one unusable hit is worth one skipped hit, never a lost
+    refresh.
+    """
+    try:
+        return float(hit["lat"]), float(hit["lon"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def place_rank_of(hit: dict) -> int | None:
+    """Nominatim's specificity rank, or None when it is missing or unusable.
+
+    Read for every candidate rather than only the chosen one, so a single hit
+    carrying null here used to raise and end the run. A refresh writes the
+    registry once at the end, so that discarded every property resolved before
+    it. One unusable hit is worth one skipped hit.
+    """
+    try:
+        return int(hit.get("place_rank"))
+    except (TypeError, ValueError):
+        return None
 
 
 def cap_precision(precision: str, cap: str | None) -> str:
@@ -414,15 +458,21 @@ def geocode_one(fetcher: Fetcher, name: str, address: str | None, region: str | 
     Returns ``(entry, reason)``; ``entry`` is None when nothing survives.
     """
     address = text_of(address)
+    name = (name or "").strip()
     attempts = []
-    if address:
+    if name and address:
         attempts.append((with_country(f"{name}, {address}"), True, None))
-    attempts.append((with_country(name), True, None))
+    if name:
+        attempts.append((with_country(name), True, None))
     if address:
         attempts.append((with_country(address), False, "address"))
         attempts.extend(
             (with_country(tail), False, "locality") for tail in address_tails(address)
         )
+    if not attempts:
+        # Without either, the only query left to build was ", Philippines",
+        # which asks for the country and gets it.
+        return None, "no name or address to search"
 
     reason = "no result"
     for query, by_name, cap in attempts:
@@ -440,8 +490,11 @@ def geocode_one(fetcher: Fetcher, name: str, address: str | None, region: str | 
         )
         best = None
         for order, hit in enumerate(results or []):
-            lat, lon = float(hit["lat"]), float(hit["lon"])
-            if not in_bounds(lat, lon) or int(hit.get("place_rank", 0)) < _MIN_PLACE_RANK:
+            here, rank = coords_of(hit), place_rank_of(hit)
+            if here is None or rank is None or rank < _MIN_PLACE_RANK:
+                continue
+            lat, lon = here
+            if not in_bounds(lat, lon):
                 continue
             # Same rule as the OSM tier: the name and the region are separate
             # kinds of evidence, and one of them has to be convincing.
@@ -454,13 +507,12 @@ def geocode_one(fetcher: Fetcher, name: str, address: str | None, region: str | 
             # coordinate. Nominatim's own order breaks ties, and only ties.
             key = (int(named), place_match(name, hit) if by_name else 0, -order)
             if best is None or key > best[0]:
-                best = (key, hit, lat, lon)
+                best = (key, hit, lat, lon, rank)
         if best is not None:
-            _, hit, lat, lon = best
+            _, hit, lat, lon, rank = best
             # place_rank rises with specificity: 30 is a building, 26 a street,
             # under 22 a town or larger. Say which one we got instead of
             # implying every pin is equally precise.
-            rank = int(hit.get("place_rank", 0))
             precision = "exact" if rank >= 30 else "address" if rank >= 22 else "locality"
             precision = cap_precision(precision, cap)
             return {
