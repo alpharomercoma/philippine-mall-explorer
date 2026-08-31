@@ -3,7 +3,7 @@
 A reproducible dataset of what is inside Philippine malls, and a site for
 exploring it.
 
-**304 properties, 41,789 store listings, 10,407 brands, 10 operators.**
+**304 properties, 41,787 store listings, 10,407 brands, 10 operators.**
 **297 properties are placed on a map.** Refreshed monthly by a scheduled
 workflow; the page and this table say which snapshot they were built from.
 
@@ -11,8 +11,8 @@ workflow; the page and this table say which snapshot they were built from.
 |---|---|
 | Live site | <https://alpharomercoma.github.io/philippine-mall-explorer/> |
 | Explore locally | `make dev`, then <http://localhost:3000> |
-| Data | [`data/snapshots/2026-08-30/`](data/snapshots/2026-08-30/) |
-| Breakdown | [`breakdown.md`](data/snapshots/2026-08-30/3_report/breakdown.md) |
+| Data | [`data/snapshots/2026-08-31/`](data/snapshots/2026-08-31/) |
+| Breakdown | [`breakdown.md`](data/snapshots/2026-08-31/3_report/breakdown.md) |
 | Design | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Mistakes worth not repeating | [docs/PITFALLS.md](docs/PITFALLS.md) |
 
@@ -114,7 +114,7 @@ the search box and the brand focus apply to both. See
 |---|---:|---:|---:|
 | SM Supermalls | 126 | 95 | 19,843 |
 | Robinsons Malls | 54 | 54 | 8,464 |
-| Ayala Malls | 32 | 32 | 5,986 |
+| Ayala Malls | 32 | 32 | 5,984 |
 | WalterMart | 47 | 47 | 2,220 |
 | Megaworld Lifestyle Malls | 26 | 26 | 2,101 |
 | Ortigas Land | 4 | 4 | 1,282 |
@@ -176,6 +176,22 @@ believed.
 The page says which snapshot it was built from, and its footer links the CSV,
 Parquet and JSON for exactly that snapshot, so downstream consumers can pin a
 month and reprocess it.
+
+### Where the scrape runs matters
+
+SM, WalterMart and Araneta refuse GitHub's runner IP ranges outright (403
+on the first request, with any User-Agent; verified by a live run
+2026-08-31). On GitHub-hosted runners the monthly job therefore refreshes
+the other seven operators and carries those three forward from the previous
+snapshot, with their true `fetched` dates in the report. Two ways to refresh
+everything:
+
+- Run `make scrape` from an ordinary residential connection and push; the
+  deploy workflow takes it from there.
+- Register a self-hosted runner on such a machine and give the rescrape job
+  `runs-on: [self-hosted]`. This repository is public, so first require
+  approval for all outside collaborators' fork workflows (Settings, Actions,
+  General) before attaching any self-hosted runner.
 
 ## Configuration
 

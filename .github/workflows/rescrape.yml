@@ -12,9 +12,9 @@
 #   attempts, up to 300s) inside the scraper itself.
 # - A chain that fails outright, or whose listings collapse against the
 #   previous snapshot, keeps that snapshot's rows and is named in the run
-#   report with its original fetched date. This matters here: SM, WalterMart,
-#   Megaworld and Araneta refuse GitHub's runner IP ranges outright (verified
-#   2026-08-31, and no User-Agent changes it), so on GitHub-hosted runners
+#   report with its original fetched date. This matters here: SM, WalterMart
+#   and Araneta refuse GitHub's runner IP ranges outright (verified by a live
+#   run 2026-08-31, and no User-Agent changes it), so on GitHub-hosted runners
 #   those chains refresh only when someone runs `make scrape` from a
 #   residential IP and pushes, or a self-hosted runner picks this job up.
 # - The scrape step as a whole runs twice with a 10 minute pause. Responses
