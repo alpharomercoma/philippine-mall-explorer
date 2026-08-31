@@ -306,41 +306,58 @@ class TestWaltermartIndex:
         assert any("/malls/silang/" in c for c in calls)
 
 
-class TestCollapseGuard:
+class TestCollapseReconcile:
     def frame(self, chain, n):
         import pandas as pd
 
-        return pd.DataFrame({"chain": [chain] * n, "mall_id": ["m"] * n})
+        return pd.DataFrame({"chain": [chain] * n, "mall_id": [f"m{i}" for i in range(n)]})
 
-    def test_a_halved_chain_stops_the_run(self, tmp_path, monkeypatch):
+    def wire(self, monkeypatch, prev_n, chain="araneta"):
+        from mallscape_scrape import pipeline
+
+        monkeypatch.setattr(pipeline.storage, "previous_run", lambda run_date: "2026-01-01")
+        monkeypatch.setattr(pipeline.storage, "read", lambda *a: self.frame(chain, prev_n))
+        return pipeline
+
+    def test_a_halved_chain_keeps_last_months_rows(self, monkeypatch):
+        pipeline = self.wire(monkeypatch, 300)
+        malls, stores, carried = pipeline.reconcile_collapse(
+            "2026-02-01", self.frame("araneta", 4), self.frame("araneta", 10)
+        )
+        assert carried == {"araneta"}
+        # the spliced frames are last month's for that chain, whole
+        assert len(stores) == 300
+        assert len(malls) == 300
+
+    def test_the_escape_hatch_keeps_the_shrink(self, monkeypatch):
+        pipeline = self.wire(monkeypatch, 300)
+        monkeypatch.setenv("MALLSCAPE_ACCEPT_COLLAPSE", "araneta")
+        _, stores, carried = pipeline.reconcile_collapse(
+            "2026-02-01", self.frame("araneta", 4), self.frame("araneta", 10)
+        )
+        assert carried == set()
+        assert len(stores) == 10
+
+    def test_small_chains_may_shrink_but_not_vanish(self, monkeypatch):
+        pipeline = self.wire(monkeypatch, 30, chain="tiny")
+        _, stores, carried = pipeline.reconcile_collapse(
+            "2026-02-01", self.frame("tiny", 2), self.frame("tiny", 10)
+        )
+        assert carried == set() and len(stores) == 10
+        _, stores, carried = pipeline.reconcile_collapse(
+            "2026-02-01", self.frame("tiny", 2), self.frame("tiny", 0)
+        )
+        assert carried == {"tiny"} and len(stores) == 30
+
+    def test_a_first_run_has_nothing_to_compare_against(self, monkeypatch):
         import pandas as pd
 
         from mallscape_scrape import pipeline
 
-        monkeypatch.setattr(
-            pipeline.storage, "previous_run", lambda run_date: "2026-01-01"
-        )
-        monkeypatch.setattr(
-            pipeline.storage, "read", lambda *a: self.frame("araneta", 300)
-        )
-        with pytest.raises(SystemExit, match="araneta: 300 -> 10"):
-            pipeline.guard_against_collapse("2026-02-01", self.frame("araneta", 10))
-        # the escape hatch is explicit and per-chain
-        monkeypatch.setenv("MALLSCAPE_ACCEPT_COLLAPSE", "araneta")
-        pipeline.guard_against_collapse("2026-02-01", self.frame("araneta", 10))
-        # a small chain shrinking is tolerated, but vanishing outright is not
-        monkeypatch.delenv("MALLSCAPE_ACCEPT_COLLAPSE")
-        monkeypatch.setattr(
-            pipeline.storage, "read", lambda *a: self.frame("tiny", 30)
-        )
-        pipeline.guard_against_collapse("2026-02-01", self.frame("tiny", 10))
-        with pytest.raises(SystemExit, match="tiny: 30 -> 0"):
-            pipeline.guard_against_collapse("2026-02-01", self.frame("tiny", 0))
-        # and a first run has nothing to compare against
         monkeypatch.setattr(pipeline.storage, "previous_run", lambda run_date: None)
-        pipeline.guard_against_collapse(
-            "2026-02-01", pd.DataFrame({"chain": [], "mall_id": []})
-        )
+        empty = pd.DataFrame({"chain": [], "mall_id": []})
+        _, _, carried = pipeline.reconcile_collapse("2026-02-01", empty, empty)
+        assert carried == set()
 
 
 class TestAranetaParser:

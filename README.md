@@ -166,9 +166,10 @@ Pages. A failed month publishes nothing: the site keeps serving the last good
 snapshot, and the failure is visible in Actions.
 
 Two guards keep an unattended run honest. A chain that loses more than half
-its listings against the previous snapshot stops the run, because that is
-usually the operator's site breaking rather than the malls emptying
-(`MALLSCAPE_ACCEPT_COLLAPSE` accepts a real shrink for one run). And a mall
+its listings against the previous snapshot keeps that snapshot's rows instead,
+because a collapse is usually the operator's site breaking rather than the
+malls emptying; the chain's `fetched` date in the report says how stale it is,
+and `MALLSCAPE_ACCEPT_COLLAPSE` keeps a real shrink for one run. And a mall
 that returns zero tenants is re-asked against the live site before being
 believed.
 

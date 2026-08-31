@@ -36,14 +36,27 @@ def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd
                 kept = sorted(set(prev_malls["chain"]) - set(chains))
                 print(f"[scrape] carrying forward {carry_from} for chains: {kept}")
 
+    succeeded = 0
     for name in chains:
         cls = SCRAPERS[name]
         fetcher = Fetcher(storage.cache_dir(run_date, name), rate=rate, headers=cls.extra_headers)
         scraper = cls(fetcher)
         try:
             malls, stores = scraper.scrape_all()
+        except Exception as exc:
+            # One operator refusing this runner's IP outright (SM's WAF blocks
+            # cloud address ranges wholesale) must not cost the other nine
+            # their month. The chain contributes nothing here, which the
+            # collapse reconciliation below turns into last month's rows.
+            warnings.append(
+                f"[{name}] scrape failed entirely ({type(exc).__name__}: {exc}); "
+                "expecting the previous snapshot's rows to be carried forward"
+            )
+            print(f"[{name}] FAILED: {type(exc).__name__}: {exc}")
+            continue
         finally:
             fetcher.close()
+        succeeded += 1
         print(
             f"[{name}] done: {len(malls)} malls, {len(stores)} stores "
             f"({fetcher.requests_made} requests, {fetcher.cache_hits} cache hits)"
@@ -52,6 +65,11 @@ def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd
         all_stores.extend(s.to_row() for s in stores)
         warnings.extend(scraper.warnings)
         confirmed_empty.update((name, mall_id) for mall_id in scraper.confirmed_empty)
+    if not succeeded:
+        raise SystemExit(
+            "every chain failed to scrape; that is this runner's network, not "
+            "ten simultaneous site redesigns. Nothing written."
+        )
 
     # Only three operators publish a region. Fill the rest from name and
     # address so region filtering reaches every property, and report whatever
@@ -83,9 +101,17 @@ def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd
             [prev_stores[~prev_stores["chain"].isin(chains)], stores_df], ignore_index=True
         )
 
+    malls_df, stores_df, carried = reconcile_collapse(run_date, malls_df, stores_df)
+    if carried:
+        confirmed_empty = {(c, m) for c, m in confirmed_empty if c not in carried}
+        warnings.extend(
+            f"[{chain}] listings collapsed against the previous snapshot; carried "
+            f"that snapshot's rows forward instead (their `fetched` date says so)"
+            for chain in sorted(carried)
+        )
+
     malls_df = place(malls_df)
 
-    guard_against_collapse(run_date, stores_df)
     storage.validate_snapshot_frames(malls_df, stores_df)
     storage.write(run_date, storage.SCRAPE, "malls", malls_df)
     storage.write(run_date, storage.SCRAPE, "stores", stores_df)
@@ -95,46 +121,58 @@ def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd
     return malls_df, stores_df
 
 
-def guard_against_collapse(run_date: str, stores_df: pd.DataFrame) -> None:
-    """Refuse to write a snapshot in which a chain lost most of its listings.
+def reconcile_collapse(
+    run_date: str, malls_df: pd.DataFrame, stores_df: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame, set[str]]:
+    """Keep last month's rows for any chain whose listings collapsed.
 
     A directory that served hundreds of tenants last month and near zero today
     is almost always the operator's site breaking, not the malls emptying;
-    Araneta's directory served empty gallery markup for a period in 2026-08
-    while its per-tenant records were still live. An unattended monthly run
-    must stop on that rather than publish it. When the shrink is real, set
-    MALLSCAPE_ACCEPT_COLLAPSE to the chain names (comma separated, or "all")
-    for that one run.
+    Araneta's directory served empty gallery markup through 2026-08 while its
+    per-tenant records were still live. For an unattended monthly run the
+    least-wrong answer is the previous snapshot's rows for that chain alone:
+    stale beats gone, the chain's `fetched` date in the report says exactly
+    how stale, and every other chain stays fresh. When the shrink is real,
+    set MALLSCAPE_ACCEPT_COLLAPSE to the chain names (comma separated, or
+    "all") for that one run and the new rows are kept as scraped.
+
+    Returns the possibly spliced frames and the chains carried forward.
     """
     previous = storage.previous_run(run_date)
-    if previous is None:
-        return
-    prev_stores = storage.read(previous, storage.SCRAPE, "stores")
-    if prev_stores is None:
-        return
+    prev_stores = storage.read(previous, storage.SCRAPE, "stores") if previous else None
+    prev_malls = storage.read(previous, storage.SCRAPE, "malls") if previous else None
+    if prev_stores is None or prev_malls is None:
+        return malls_df, stores_df, set()
     accepted = {
         c.strip() for c in os.environ.get("MALLSCAPE_ACCEPT_COLLAPSE", "").split(",") if c.strip()
     }
     before = prev_stores.groupby("chain").size()
     after = stores_df.groupby("chain").size()
+
     def collapsed_for(chain) -> bool:
         now = after.get(chain, 0)
         halved = before[chain] >= 50 and now < before[chain] * 0.5
         vanished = before[chain] >= 20 and now == 0
         return (halved or vanished) and chain not in accepted and "all" not in accepted
 
-    collapsed = [
-        f"{chain}: {int(before[chain]):,} -> {int(after.get(chain, 0)):,}"
-        for chain in before.index
-        if collapsed_for(chain)
-    ]
-    if collapsed:
-        raise SystemExit(
-            "refusing to write the snapshot: these chains lost more than half "
-            f"their listings since {previous}, which usually means the source "
-            f"broke, not the malls: {'; '.join(collapsed)}. If the shrink is "
-            "real, rerun with MALLSCAPE_ACCEPT_COLLAPSE=<chains|all>."
+    carried = {chain for chain in before.index if collapsed_for(chain)}
+    if not carried:
+        return malls_df, stores_df, set()
+    for chain in sorted(carried):
+        print(
+            f"[scrape] {chain}: {int(before[chain]):,} -> {int(after.get(chain, 0)):,} "
+            f"listings since {previous}; the source likely broke, keeping the "
+            f"{previous} rows (MALLSCAPE_ACCEPT_COLLAPSE={chain} accepts the shrink)"
         )
+    malls_df = pd.concat(
+        [malls_df[~malls_df["chain"].isin(carried)], prev_malls[prev_malls["chain"].isin(carried)]],
+        ignore_index=True,
+    )
+    stores_df = pd.concat(
+        [stores_df[~stores_df["chain"].isin(carried)], prev_stores[prev_stores["chain"].isin(carried)]],
+        ignore_index=True,
+    )
+    return malls_df, stores_df, carried
 
 
 def place(malls_df: pd.DataFrame) -> pd.DataFrame:

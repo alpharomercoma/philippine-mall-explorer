@@ -10,9 +10,16 @@
 # Failure behavior, outermost to innermost:
 # - Each HTTP request retries 403/429/5xx with exponential backoff (8
 #   attempts, up to 300s) inside the scraper itself.
+# - A chain that fails outright, or whose listings collapse against the
+#   previous snapshot, keeps that snapshot's rows and is named in the run
+#   report with its original fetched date. This matters here: SM, WalterMart,
+#   Megaworld and Araneta refuse GitHub's runner IP ranges outright (verified
+#   2026-08-31, and no User-Agent changes it), so on GitHub-hosted runners
+#   those chains refresh only when someone runs `make scrape` from a
+#   residential IP and pushes, or a self-hosted runner picks this job up.
 # - The scrape step as a whole runs twice with a 10 minute pause. Responses
 #   are cached on disk for the life of the job, so the second attempt refetches
-#   only what failed, not the ~3,000 requests that succeeded.
+#   only what failed, not the requests that succeeded.
 # - If any stage or check still fails, the job stops BEFORE the commit step:
 #   a bad month publishes nothing and the site keeps serving the last good
 #   snapshot. The failed run is visible (and emailed) via Actions.
