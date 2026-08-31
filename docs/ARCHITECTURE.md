@@ -21,8 +21,8 @@ per-chain scrapers:
 ```
 
 A scraper's only obligation is to turn one operator's mess into `Mall` and
-`Store` rows. Everything downstream — validation, normalization, brand
-matching, reporting — is chain-agnostic and written once.
+`Store` rows. Everything downstream - validation, normalization, brand
+matching, reporting - is chain-agnostic and written once.
 
 ## Layout
 
@@ -57,13 +57,13 @@ in stage 1 means stages 2 to 4 stay pure functions of a committed snapshot.
 | module | responsibility |
 |---|---|
 | `fetch.py` | One HTTP client: rate limiting, exponential backoff, per-chain headers, and an on-disk response cache keyed by URL+params |
-| `models.py` | `Mall` and `Store` — the only vocabulary the rest of the system speaks |
+| `models.py` | `Mall` and `Store` - the only vocabulary the rest of the system speaks |
 | `scrapers/base.py` | `MallChainScraper` ABC: `discover_malls()` + `scrape_mall()`, plus per-mall failure isolation |
 | `scrapers/*.py` | One module per operator. All the site-specific ugliness lives here |
 | `coverage.py` | Reads `registry/<chain>_coverage.json` and reports known gaps every run |
 | `geocode.py` | Resolves a coordinate per property and owns `registry/mall_coordinates.json`. The only module that talks to a geocoding service, and only from `mallscape geocode` |
 | `geo.py` | Region inference, the Philippine bounding box, and coordinate parsing. One implementation, so every scraper places a property the same way |
-| `normalize.py` | `brand_key()` — collapses raw store names so brands match across chains |
+| `normalize.py` | `brand_key()` - collapses raw store names so brands match across chains |
 | `validate.py` | Per-run report: counts, diff vs previous snapshot, anomaly detection |
 | `analyze.py` | Builds the brand-presence tables |
 | `report.py` | Deterministic Markdown breakdown of a snapshot |
@@ -75,7 +75,7 @@ in stage 1 means stages 2 to 4 stay pure functions of a committed snapshot.
 **1. A snapshot is either complete or not published.**
 
 A crashed or single-chain run once left a zero-row snapshot on disk, and
-`analyze` — which picks the newest snapshot — selected it and crashed. Three
+`analyze` - which picks the newest snapshot - selected it and crashed. Three
 guards now exist: `scrape` carries forward chains it isn't scraping,
 `latest_usable_run()` skips degenerate snapshots, and `update_latest()`
 refuses to publish one. Carried-forward rows keep their original `scraped_at`,
@@ -87,25 +87,26 @@ Every scraper that cannot derive its mall list live must verify its hardcoded
 roster against the site on each run and warn on drift (`filinvest`, `starmall`,
 `araneta`, and `fishermall` for floor lists). Every known-empty mall is
 recorded in a coverage registry so it stays explained rather than
-re-investigated. Truncation is reported, not swallowed — WalterMart emits a
-warning for every category that hits the server's 10-item cap.
+re-investigated. Truncation is routed around where the site allows it:
+WalterMart's capped per-mall pages are replaced by its uncapped chain-wide
+store index and branch API.
 
 This invariant is the one that keeps being violated. See `docs/PITFALLS.md`.
 
 ## Adding a chain
 
 1. Find the real data source before writing any parser. Load the directory page
-   in a browser and watch the network tab — half these sites turn out to have a
+   in a browser and watch the network tab - half these sites turn out to have a
    clean JSON API behind a JavaScript front end. Check for a stale or parked
    domain first; three of the operators investigated had one.
 2. Subclass `MallChainScraper`. Set `extra_headers` if the endpoint needs them.
 3. Derive the mall roster **live** if the site permits it. If you must hardcode,
    add a `_check_roster()` that diffs against the live nav and warns.
 4. Add a fixture from the raw cache and a parser test asserting an exact count
-   against the source markup — not a lower bound.
+   against the source markup - not a lower bound.
 5. Register it in `SCRAPERS` in `cli.py` and add it to `SOURCES` in `report.py`.
 
-Everything else — validation, normalization, analysis, reporting — picks the
+Everything else - validation, normalization, analysis, reporting - picks the
 new chain up automatically.
 
 ## Verification workflow

@@ -1,0 +1,14 @@
+{
+ "_comment": "Ortigas Land retail absent from ortigasmalls.com. Checked 2026-08-31; no Wikipedia article lists Ortigas Malls, so the roster was checked against Ortigas Land's own marketing.",
+ "not_in_api": [
+  {
+   "name": "Industria",
+   "region": "metro-manila",
+   "location": "Ortigas East, Pasig",
+   "opened": null,
+   "property_type": "community-mall",
+   "note": "Named as the fourth Ortigas mall in the operator's marketing; not on ortigasmalls.com.",
+   "directory_source": null
+  }
+ ]
+}

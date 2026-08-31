@@ -25,7 +25,7 @@ Write that comparison **before** declaring a chain done.
 
 SM's dedupe keyed on `tenant_slug`. About 1% of SM records ship with an *empty*
 slug, so the key silently degraded to the display name and merged genuinely
-distinct outlets — two Potato Corners on different floors of the same mall
+distinct outlets - two Potato Corners on different floors of the same mall
 became one. 238 records lost. Worse, because SM's pagination is not a stable
 sort, *which* floor survived varied between fetches.
 
@@ -45,7 +45,7 @@ attach data to it. Never infer existence from the presence of data.
 ## Partial unescaping
 
 Starmall's directory sits in a JSON-escaped blob. The parser decoded
-`"`, `<`, `>` by hand and stopped there — so `'`
+`"`, `<`, `>` by hand and stopped there - so `'`
 (apostrophe) survived into store names. `brand_key("BAKER'S FAIR")`
 produced `baker u0027s fair`, making 21 tenants invisible to the cross-chain
 brand matching that is the point of the dataset.
@@ -57,7 +57,7 @@ corruption in a display field.
 ## Cosmetic filters that eat real data
 
 One scraper dropped any name ending in `.` as noise. Real tenants end in
-`INC.`, `CORP.`, `ACC.` — 21 of them vanished.
+`INC.`, `CORP.`, `ACC.` - 21 of them vanished.
 
 **Rule:** filters must target the specific junk observed, by its own
 vocabulary or structure, never by a generic shape that legitimate data shares.
@@ -85,6 +85,13 @@ The chain's totals are a **floor**, and the docstring said otherwise.
 completeness assertion in code. If you cannot cite the test, do not write the
 claim.
 
+The cap itself was eventually beaten from the outside: the site's Django
+debug 404 page prints the URLconf, which named an uncapped chain-wide
+`/stores/` index and an `/api/stores/<id>/` branches route. Inverting the
+crawl through those lifted the chain from 1,465 to 2,254 listings. When a
+directory looks truncated, read the error pages: frameworks volunteer their
+own routing table.
+
 ## Site-reused markup
 
 Robinsons puts parking-rate notices inside `li.store-name`, the same element
@@ -102,7 +109,7 @@ podiums, 3 are Sky Ranch amusement parks and 2 are office annexes. Comparing
 that 126 against Ayala's 32 overstates SM by a quarter.
 
 **Rule:** classify `property_type` and filter to `mall` before any
-chain-vs-chain comparison. Currently only SM is classified — see the open items
+chain-vs-chain comparison. Currently only SM is classified - see the open items
 in `README.md`.
 
 ## Stale and parked domains
@@ -393,3 +400,141 @@ refused outright.
 **Rule:** a fallback chain is only worth what its last rung returns. Test the
 bottom of it, not the top, and check that the bottom is not something that
 answers everything.
+
+
+## Being in the right region is not evidence
+
+Two properties were drawn 40 km and 140 km from where they are. Robinsons Gapan,
+in Nueva Ecija, sat on Robinsons Starmills in San Fernando, Pampanga. WalterMart
+Balanga, in Bataan, sat on the Urdaneta Philippines Temple in Villasis,
+Pangasinan. Both pins were labelled `nominatim/exact`, which on the map means a
+building.
+
+Neither was chosen carelessly. Each passed every check the matcher had: inside
+the Philippine bounding box, `place_rank` well above a town, and inside the
+region recorded for the property. That last one is the whole problem. The
+regions are quarters of the country - "north-luzon" is everything from Bataan to
+Batanes - so "the best candidate in the right region" is barely a choice, and
+when a query returns a single unrelated result it is no choice at all.
+
+The fix is a floor rather than a ranking: whatever the query asked for has to
+appear in the answer. For a query built from the property's name, that is the
+part of the name the venue's own name did not account for, found somewhere in
+the hit's address. For a query built from an address, it is any distinctive word
+of that address coming back. A candidate whose only qualification is "somewhere
+in Luzon" is now dropped instead of downgraded.
+
+The rule cuts the other way too, and that half is easy to miss. Once a hit names
+the town, the region box is the weaker evidence, not the stronger: the boxes are
+coarse enough to put Bataan outside north-luzon, which is exactly why the
+correct Balanga hit was being thrown away while the temple was kept. A town or
+province match now stands on its own; only a street or barangay match still
+needs the region to agree.
+
+**Rule:** a check that a wrong answer passes nine times out of ten is not a
+check. Ask what the query asked for, and require the answer to contain it.
+
+
+## A word two places share is not a place they share
+
+"Pasig City" and "Quezon City" have a word in common. The first version of the
+evidence rule above accepted that word, so a Quezon City node kept the pin for a
+Pasig property and reported itself corroborated.
+
+The same shape appeared twice more in the same afternoon. Verifying a pin means
+reverse-geocoding the coordinate just chosen - and the reverse lookup returns the
+very feature the coordinate came from, so its name matched itself. Removing the
+name was not enough either: Nominatim repeats the feature's name *inside* the
+address breakdown, under a key named for the feature's class (`"shop": "The
+Strip Mall"`), so it matched itself a second time through a different door.
+
+Verification now reads only the settlement and street fields - city, town,
+province, barangay, road - and only after structural words (city, street,
+barangay, province, building) are removed from both sides. What is left is the
+name of a place rather than the word "place".
+
+Two more agreements-by-accident came out of an adversarial review of the fix
+rather than from the data. Saints and articles are the country's most common
+place-name components, so "San Jose del Monte, Bulacan" and "San Fernando,
+Pampanga" share two words and no location; those are filtered too. And the
+check was reading the property's *name* as well as its address, which puts the
+brand back in play: a reverse result of `{"village": "Ayala", "city":
+"Makati"}` corroborated Ayala Malls Serin in Tagaytay, because half the
+villages in the country are called Ayala. Only the address may speak.
+
+Filtering that hard has its own failure, and the review found that too: a
+barangay really is called Zone and a mall really is called The Block. When the
+filter empties either side it has removed the answer, so the unfiltered words
+are what get compared there.
+
+**Rule:** when checking an answer against itself, write down exactly which
+fields are allowed to speak. Anything derived from the thing being checked will
+agree with it.
+
+
+## The most trusted source is the one nothing checks
+
+Coordinates came from three tiers - the operator's own API, OpenStreetMap, then
+free-text geocoding - in descending order of trust, and the code said so:
+"nothing can beat the operator". Nothing checked it either, because the matcher
+never sees an operator coordinate at all. It arrives with the scrape and goes
+straight to the map.
+
+Ayala publishes longitude 120.258804 for Ayala Malls Serin, alongside the
+Tagaytay address that puts it at 120.958891. Two-thirds of a degree, one digit,
+about 76 km due west: into the West Philippine Sea. It reached production
+wearing the highest confidence label in the system and stayed there until
+somebody looked at the map and saw a mall in the ocean.
+
+Two things came out of it. `mallscape geocode --verify` reverse-geocodes every
+placed property and fails on any pin with nothing at it, which is the only check
+that reads the operator tier. And the registry may now override an operator
+coordinate, but only in writing: the entry carries a `corrects_operator` field
+with the evidence, and an entry without one is ignored on operator-placed rows.
+
+**Rule:** rank your sources by trust, then test the most trusted one hardest. It
+is the one whose errors nothing downstream will catch.
+
+
+## Zero is a measurement, and a cache cannot take it twice
+
+Nine properties in the July snapshot listed no tenants at all, reported as one
+sorted tuple list in a footnote of the run report. Reading the cached responses
+one by one showed all nine were genuine upstream gaps - WalterMart's category
+pages say "No store available", SM's API returns `counts: 0`, Ayala's roster
+marks Vermosa `explore: false`.
+
+Genuine on the day. Asked again five weeks later, SM City La Union returned 201
+tenants. Nothing about our code changed; the operator's directory came back. The
+snapshot had recorded "this mall has no tenants" when the truth was "this
+request, that day, returned none", and those look identical in a cache.
+
+So an empty directory is now the one result that is never taken from the cache:
+it is asked again, live, and only an empty answer from the network is recorded -
+as `confirmed_empty`, separately from a request that raised, which proves
+nothing either way. The run report splits the result by property type, because
+an amusement park with no tenants is what an amusement park is and a mall with
+none is a hole in the data. Malls under a quarter of their own chain's median
+are named as well, so a directory that half-broke is as visible as one that
+broke completely.
+
+Reporting them was not enough either, because a list that is mostly known gaps
+is a list nobody reads. Each confirmed empty now has to be written down in
+`registry/empty_directories.json` with its evidence and the date it was
+checked, and a zero-tenant mall missing from that file is reported as an
+unexplained defect in capitals rather than as another line in a footnote. The
+file names its own stale entries too: an exemption nobody removes is a licence
+for the next real defect.
+
+The thin-mall half of the same section justified itself on its first run. Of
+the eighteen malls it named, five were not malls: SM Hypermarket Lapu-Lapu at
+13 tenants, Savemore Nagtahan at 21, and three more grocery stores classified
+as malls in a chain whose malls carry a median of 160. They had been inflating
+SM's mall count in the one comparison the "malls only" filter exists to get
+right. The remaining fourteen were each checked against their source and every
+one is the operator's own number - which is a finding too, and it is written
+down in `DATA.md` rather than re-derived by the next person to notice.
+
+**Rule:** a zero is the one value worth measuring twice. Everything else in a
+cache is a fact about the world; a zero is often a fact about the request. And
+an anomaly report is only worth what its reader is obliged to do about it.

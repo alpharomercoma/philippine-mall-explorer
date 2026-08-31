@@ -67,7 +67,11 @@ _NON_LEVEL = re.compile(
     r"|carpark|car ?park|roof|concourse|mezzanine|wing|atrium|activity|garden",
     re.I,
 )
-_SMART = str.maketrans({"’": "'", "‘": "'", "“": '"', "”": '"', "–": "-", "—": "-"})  # noqa: RUF001 - the table maps these on purpose
+# Smart quotes and long dashes folded to ASCII. Escapes, not literals, so a
+# search for stray non-ASCII punctuation in the source stays clean.
+_SMART = str.maketrans(
+    {"\u2019": "'", "\u2018": "'", "\u201c": '"', "\u201d": '"', "\u2013": "-", "\u2014": "-"}
+)
 # leading/trailing separators left over from the source markup
 _EDGE_JUNK = re.compile(r"^[\s\-,|]+|[\s\-,|]+$")
 _VOWEL = re.compile(r"[AEIOU]")
@@ -174,7 +178,7 @@ def _is_acronym(token: str) -> bool:
     return token in _ACRONYMS or not _VOWEL.search(token)
 
 
-def standardize_category(raw, chain: str) -> str:
+def standardize_category(raw) -> str:
     """Map a chain's own category string onto the shared taxonomy."""
     if raw is None or (isinstance(raw, float) and pd.isna(raw)):
         return "unknown"
@@ -315,7 +319,7 @@ def propagate_categories(df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
     return filled, source
 
 
-def build(stores: pd.DataFrame, malls: pd.DataFrame | None = None) -> pd.DataFrame:
+def build(stores: pd.DataFrame) -> pd.DataFrame:
     """Return a cleaned copy. The input frame is never mutated."""
     df = stores.copy()
 
@@ -323,7 +327,7 @@ def build(stores: pd.DataFrame, malls: pd.DataFrame | None = None) -> pd.DataFra
     df["brand_key"] = df["store_name"].map(brand_key)
     df["brand_canonical"] = brands.resolve(df["brand_key"])
     df["category_std"] = [
-        standardize_category(c, ch) for c, ch in zip(df["category"], df["chain"], strict=False)
+        standardize_category(c) for c in df["category"]
     ]
     df["category_std"], df["category_source"] = propagate_categories(df)
     floors = [standardize_floor(f) for f in df["floor"]]
@@ -338,8 +342,10 @@ def build(stores: pd.DataFrame, malls: pd.DataFrame | None = None) -> pd.DataFra
     # --- data quality flags: describe, never drop ---
     flags: list[list[str]] = [[] for _ in range(len(df))]
     def flag(mask, label):
-        for i in df.index[mask]:
-            flags[df.index.get_loc(i)].append(label)
+        # positional, because flags is positional; index lookups here were
+        # quadratic over a 40,000-row frame
+        for pos in mask.to_numpy().nonzero()[0]:
+            flags[pos].append(label)
 
     flag(df["brand_key"].eq(""), "empty_brand_key")
     flag(df["category_std"].eq("unknown"), "category_unmapped")
@@ -371,7 +377,7 @@ def category_mapping(stores: pd.DataFrame) -> pd.DataFrame:
     rows = (
         stores.assign(
             category_std=[
-                standardize_category(c, ch) for c, ch in zip(stores["category"], stores["chain"], strict=False)
+                standardize_category(c) for c in stores["category"]
             ]
         )
         .groupby(["chain", "category", "category_std"], dropna=False)

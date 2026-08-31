@@ -10,7 +10,7 @@ so the parser unescapes that blob first and then parses the HTML fragments:
       <p>Contact Number:<br/>8842-7099</p><p>Location:<br/>Level 2</p>
 
 Only four Starmalls exist; Vista Land's separate "Vista Mall" brand publishes
-no tenant directory at all (see registry/vista_coverage.json).
+no tenant directory at all (see registry/unscraped_chains.json).
 """
 
 from __future__ import annotations
@@ -95,7 +95,10 @@ class StarmallScraper(MallChainScraper):
             seen.add(name.lower())
 
             cats = [c.lower() for c in _CATEGORY.findall(chunk[:400]) if c.lower() != "all"]
-            fragment = HTMLParser(chunk[: chunk.find("</div></div></div>") + 20 or None])
+            # Trim at the card's closing tags when present; when absent, parse
+            # the whole chunk. (find() returning -1 must not slice to 19.)
+            end = chunk.find("</div></div></div>")
+            fragment = HTMLParser(chunk if end < 0 else chunk[: end + len("</div></div></div>")])
             text = re.sub(r"\s+", " ", fragment.text(separator="\n"))
             phone = _after(text, "Contact Number:")
             floor = _after(text, "Location:")

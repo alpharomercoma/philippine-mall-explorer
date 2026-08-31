@@ -1,6 +1,10 @@
-# Publishes 4_website/site to GitHub Pages. The site is static and the data
-# bundle is committed, so there is nothing to build here: a build step would
-# only add a way for the deploy to disagree with the repository.
+# Publishes 4_website/site to GitHub Pages when the site changes on main.
+# The site is static and the data bundle is committed, so there is nothing to
+# build here: a build step would only add a way for the deploy to disagree
+# with the repository.
+#
+# The monthly rescrape workflow deploys on its own after committing, because
+# pushes made with the default workflow token do not trigger this one.
 name: Deploy site
 
 on:
@@ -9,10 +13,7 @@ on:
     paths: ["4_website/site/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: pages
@@ -21,6 +22,10 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

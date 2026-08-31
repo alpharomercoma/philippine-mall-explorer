@@ -42,6 +42,15 @@
       "matched": "Pavilion Mall",
       "ref": "way/32083720"
     },
+    "ayala:ayala-serin": {
+      "lat": 14.112935,
+      "lon": 120.958891,
+      "source": "osm",
+      "precision": "exact",
+      "matched": "Ayala Malls Serin, Tagaytay-Nasugbu Road, Silang Crossing East, Tagaytay, Cavite",
+      "ref": "way/444842219",
+      "corrects_operator": "Ayala's API publishes longitude 120.258804 for this property, 0.7 degrees west of the Tagaytay address it publishes alongside it, which puts the pin in the West Philippine Sea. Replaced with the OpenStreetMap building of the same name at the published address. Verified 2026-08-30."
+    },
     "filinvest:dumaguete": {
       "lat": 9.322651,
       "lon": 123.31192,
@@ -115,12 +124,13 @@
       "ref": "way/319270987"
     },
     "ortigas:the-strip": {
-      "lat": 14.601129,
-      "lon": 121.088168,
-      "source": "osm",
-      "precision": "exact",
-      "matched": "The Strip Mall",
-      "ref": "node/6006851691"
+      "lat": 14.575937,
+      "lon": 121.063503,
+      "source": "nominatim",
+      "precision": "address",
+      "matched": "Capitol Commons, Oranbo, Pasig First District, Pasig, Eastern Manila District, Metro Manila, Philippines",
+      "ref": "relation/12530292",
+      "note": "Placed on the Capitol Commons complex its address names, not on a building. Two OSM features are called The Strip: a node in Bagumbayan, Quezon City (4 km away, in the wrong city, which is what this used to be pinned to) and a way in Ugong, Pasig, 1.5 km north of Capitol Commons. Neither is the property, and the complex is the most specific thing the address supports. Verified 2026-08-30."
     },
     "ortigas:tiendesitas": {
       "lat": 14.585939,
@@ -259,12 +269,12 @@
       "ref": "way/30177229"
     },
     "robinsons:robinsons-gapan": {
-      "lat": 15.048633,
-      "lon": 120.698432,
+      "lat": 15.300888,
+      "lon": 120.948554,
       "source": "nominatim",
-      "precision": "exact",
-      "matched": "Robinsons Starmills, Jose Abad Santos Avenue, San Jose, San Fernando, Pampanga, Central Luzon, 2000, Philippines",
-      "ref": "relation/8202540"
+      "precision": "address",
+      "matched": "Robinsons Place Gapan, Bayanihan, Gapan, Nueva Ecija, Central Luzon, Philippines",
+      "ref": "way/1063329670"
     },
     "robinsons:robinsons-gen-san": {
       "lat": 6.12311,
@@ -1578,6 +1588,15 @@
       "matched": "Starmall Talisay, Lawaan I, Talisay, Cebu, Central Visayas, 6045, Philippines",
       "ref": "way/1141325845"
     },
+    "waltermart:altaraza": {
+      "lat": 14.778171,
+      "lon": 121.074942,
+      "source": "osm",
+      "precision": "exact",
+      "matched": "Waltermart Supermarket, Altaraza Town Center, San Jose del Monte, Bulacan",
+      "ref": "way/1102377958",
+      "note": "Hand-resolved 2026-08-31. The branches API names this mall but /malls/ does not link it, and Nominatim has no result for any Altaraza query. OSM carries the building as 'Waltermart Supermarket' (tagged construction from its build phase) inside the Altaraza township, which matches Wikipedia's WalterMart Altaraza, San Jose del Monte."
+    },
     "waltermart:antipolo": {
       "lat": 14.579451,
       "lon": 121.17312,
@@ -1603,12 +1622,12 @@
       "ref": "way/1020008242"
     },
     "waltermart:balanga": {
-      "lat": 15.938523,
-      "lon": 120.581902,
+      "lat": 14.671472,
+      "lon": 120.523092,
       "source": "nominatim",
-      "precision": "address",
-      "matched": "Urdaneta Philippines Temple, MacArthur Highway, Bacag, San Nicolas, Villasis, Pangasinan, Ilocos Region, 2427, Philippin",
-      "ref": "way/1330499494"
+      "precision": "exact",
+      "matched": "WalterMart, Roman Superhighway, Tenejero, San Jose, Bagong Silang, Balanga, Bataan, Central Luzon, 2100, Philippines",
+      "ref": "way/830769838"
     },
     "waltermart:balayan": {
       "lat": 13.949452,
@@ -1913,6 +1932,14 @@
       "precision": "exact",
       "matched": "WalterMart Trece Martires, Governor's Drive, San Agustin, Trece Martires, Cavite, Calabarzon, 4109, Philippines",
       "ref": "node/5620738110"
+    },
+    "waltermart:waltermart-san-rafael": {
+      "lat": 15.026548,
+      "lon": 120.933466,
+      "source": "nominatim",
+      "precision": "exact",
+      "matched": "WalterMart, Cagayan Valley Road, Cruz na Daan, San Rafael, Bulacan, Central Luzon, 3008, Philippines",
+      "ref": "way/1501074711"
     }
   }
 }

@@ -9,6 +9,8 @@ dependency on the committed snapshot.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import ClassVar
 
 import pandas as pd
@@ -143,6 +145,19 @@ def test_website_build_keeps_csp_and_tile_url_in_step(snapshot, tmp_path, monkey
         website_stage.run(snapshot)
 
 
+def test_vercel_sends_no_resource_csp_of_its_own():
+    """Browsers enforce the INTERSECTION of every delivered policy. A second
+    CSP in vercel.json once omitted the tile host and silently blocked every
+    map tile on that host, so the header may carry only what a meta tag
+    cannot (frame-ancestors); resource policy lives in the page alone."""
+    spec = json.loads((Path(__file__).parent.parent / "vercel.json").read_text())
+    for rule in spec.get("headers", []):
+        for header in rule["headers"]:
+            if header["key"].lower() == "content-security-policy":
+                directives = {d.strip().split()[0] for d in header["value"].split(";") if d.strip()}
+                assert directives <= {"frame-ancestors"}, directives
+
+
 def test_snapshot_contract_rejects_orphan_store():
     malls = MALLS.copy()
     stores = STORES.copy()
@@ -169,6 +184,7 @@ def test_partial_scrape_does_not_drop_other_chains(snapshot, monkeypatch):
 
         def __init__(self, fetcher):
             self.warnings = []
+            self.confirmed_empty = []
 
         def scrape_all(self):
             from mallscape_core.models import Mall, Store

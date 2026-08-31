@@ -308,10 +308,6 @@ function draw() {
 
 /* ---------- public API ---------- */
 
-export function isLoaded() {
-  return map !== null;
-}
-
 /** Create the map on first use. Safe to call repeatedly. */
 export async function ensure({ container, tiles, attribution, referrerPolicy, onTileFailure }) {
   onTileError = onTileFailure;

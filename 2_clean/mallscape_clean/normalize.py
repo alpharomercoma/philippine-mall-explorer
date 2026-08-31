@@ -43,9 +43,15 @@ _PAREN_MATCH_NOISE = re.compile(
     re.IGNORECASE,
 )
 _BRANCH_SUFFIX = re.compile(
-    r"\s*[--]\s*(kiosk|cart|stall|booth|express|branch|level \d+|[lb]\d+[a-z]?|2nd branch)$",
+    r"\s*-\s*(kiosk|cart|stall|booth|express|branch|level \d+|[lb]\d+[a-z]?|2nd branch)$",
     re.IGNORECASE,
 )
+# En dash and em dash, folded to a hyphen BEFORE the ascii fold below, which
+# would otherwise delete them outright and hide the branch suffix from
+# _BRANCH_SUFFIX: a dash-separated "Kiosk" must key the same whichever dash
+# the operator typed. Escapes, not literals, so a search for stray dashes
+# stays clean.
+_DASHES = str.maketrans({"\u2013": "-", "\u2014": "-"})
 _NON_ALNUM = re.compile(r"[^a-z0-9&() ]+")
 
 
@@ -64,9 +70,10 @@ def brand_key(raw: str) -> str:
         return f" ({content}) "
 
     s = _PARENS.sub(parenthetical, s)
+    s = s.translate(_DASHES)
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
     s = s.lower()
-    s = s.replace("'", "").replace("'", "")
+    s = s.replace("'", "")
     s = _BRANCH_SUFFIX.sub("", s.strip())
     s = _NON_ALNUM.sub(" ", s)
     s = re.sub(r"\s+", " ", s).strip()

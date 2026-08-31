@@ -1,0 +1,32 @@
+{
+ "_comment": "SM retail properties that smsupermalls.com's API does NOT list. Checked 2026-08-31 against Wikipedia's List of SM Supermalls ('other malls' section); every numbered operating SM Supermall IS in the API. Recorded so coverage limits are explicit rather than silent.",
+ "not_in_api": [
+  {
+   "name": "SM Araneta City",
+   "region": "metro-manila",
+   "location": "Araneta City, Quezon City",
+   "opened": "1980",
+   "property_type": "mall",
+   "note": "Formerly SM Cubao. Operating per Wikipedia, absent from the API's mall list.",
+   "directory_source": null
+  },
+  {
+   "name": "SM Quiapo",
+   "region": "metro-manila",
+   "location": "Quiapo, Manila",
+   "opened": "1972",
+   "property_type": "department-store",
+   "note": "Department store rather than a supermall; absent from the API.",
+   "directory_source": null
+  },
+  {
+   "name": "SM Delgado",
+   "region": "visayas",
+   "location": "Iloilo City",
+   "opened": "1982",
+   "property_type": "department-store",
+   "note": "Department store rather than a supermall; absent from the API.",
+   "directory_source": null
+  }
+ ]
+}

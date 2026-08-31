@@ -1,0 +1,23 @@
+{
+ "_comment": "Starmall-brand properties starmalls.com.ph does NOT list, checked 2026-08-31 against Wikipedia's Starmalls article. The wider Vista Malls portfolio (~26 properties, same parent) publishes no tenant directories at all and is recorded in unscraped_chains.json. Separately: Starmall Alabang burned in January 2022 (80% damaged) and the site is being redeveloped as The Terminal, yet the operator still publishes its pre-fire directory; that staleness is flagged on the property itself in the site bundle.",
+ "not_in_api": [
+  {
+   "name": "Starmall Annex Las Pinas",
+   "region": "metro-manila",
+   "location": "Las Pinas City",
+   "opened": null,
+   "property_type": "community-mall",
+   "note": "Operating per Wikipedia, not linked from the site's mall roster.",
+   "directory_source": null
+  },
+  {
+   "name": "Starplaza Agro",
+   "region": "metro-manila",
+   "location": "Muntinlupa City",
+   "opened": null,
+   "property_type": "community-mall",
+   "note": "Operating per Wikipedia, not linked from the site's mall roster.",
+   "directory_source": null
+  }
+ ]
+}

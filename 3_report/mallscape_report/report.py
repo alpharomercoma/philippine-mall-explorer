@@ -24,7 +24,7 @@ SOURCES = {
     "robinsons": ("robinsonsmalls.com + vmd.robinsonsmalls.com", "Drupal HTML + Google Sites fallback"),
     "ayala": ("api.ayalamalls.com", "explore-v2 JSON API"),
     "megaworld": ("megaworld-lifestylemalls.com", "Contentstack headless CMS API"),
-    "waltermart": ("malls.waltermart.com.ph", "server-rendered HTML"),
+    "waltermart": ("malls.waltermart.com.ph", "store index + per-store branches API"),
     "ortigas": ("ortigasmalls.com", "Laravel/Inertia data-page JSON"),
     "filinvest": ("filinvestlifemalls.com", "server-rendered HTML table"),
     "fishermall": ("fishermall.com.ph", "loadlevel.php HTML fragments"),
@@ -34,11 +34,6 @@ SOURCES = {
 
 # Chains whose published totals are known to be a lower bound.
 CAVEATS = {
-    "waltermart": (
-        "**Counts are a FLOOR.** Every category page caps at 10 tenants and the "
-        "mall page returns an identical set; no pagination or limit parameter "
-        "lifts it. Malls with a capped category are truncated upstream."
-    ),
     "ayala": (
         "Ayala's API returns duplicate `(mall, merchant)` pairs with distinct "
         "ids but no distinguishing fields, so listing counts run above the "
@@ -47,7 +42,9 @@ CAVEATS = {
 }
 
 
-def _fmt_table(rows: list[list[str]], headers: list[str], align_right: set[int] = frozenset()) -> str:
+def _fmt_table(
+    rows: list[list[str]], headers: list[str], align_right: frozenset[int] | set[int] = frozenset()
+) -> str:
     widths = [len(h) for h in headers]
     for row in rows:
         for i, cell in enumerate(row):
@@ -111,7 +108,7 @@ def build(run_date: str) -> str:
     # ---------- data quality ----------
     add("## Data quality")
     add("")
-    unknown = int((stores.get("category_std", "unknown") == "unknown").sum()) if "category_std" in stores else None
+    unknown = int((stores["category_std"] == "unknown").sum()) if "category_std" in stores else None
     if unknown is not None:
         add(f"{unknown:,} of {len(stores):,} listings have no confidently mapped category.")
     review = storage.read(run_date, storage.CLEAN, "normalization_review")
@@ -159,7 +156,7 @@ def build(run_date: str) -> str:
         cm = malls[malls["chain"] == chain]
         mall_only = int((cm["property_type"] == "mall").sum())
         fetched = sorted(cm["scraped_at"].unique())
-        host, _method = SOURCES.get(chain, ("-", "-"))
+        host, method = SOURCES.get(chain, ("-", "-"))
         rows.append([
             chain,
             f"{len(cm):,}",
@@ -167,6 +164,7 @@ def build(run_date: str) -> str:
             f"{int(cm['listings'].sum()):,}",
             ", ".join(fetched),
             host,
+            method,
         ])
     rows.append([
         "**total**",
@@ -175,17 +173,18 @@ def build(run_date: str) -> str:
         f"**{len(stores):,}**",
         "",
         "",
+        "",
     ])
     add(_fmt_table(
         rows,
-        ["chain", "properties", "malls", "listings", "fetched", "source"],
+        ["chain", "properties", "malls", "listings", "fetched", "source", "method"],
         align_right={1, 2, 3},
     ))
     add("")
     add(
         "`properties` counts everything the operator publishes a directory for; "
-        "`malls` excludes non-mall retail (condo podiums, amusement parks, office "
-        "annexes). **Use `malls` for chain-vs-chain comparison.**"
+        "`malls` excludes non-mall retail (supermarkets, condo podiums, amusement "
+        "parks, office annexes). **Use `malls` for chain-vs-chain comparison.**"
     )
     add("")
 

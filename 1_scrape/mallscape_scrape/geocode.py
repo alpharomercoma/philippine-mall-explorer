@@ -9,7 +9,10 @@ Three sources, in descending order of trust:
 
 ``operator``
     The chain's own API publishes the coordinate. Ayala and Megaworld do. This
-    is the mall as its owner locates it, so nothing can beat it.
+    is the mall as its owner locates it, and nothing outranks it - except a
+    registry entry that says in writing why the operator is wrong, which is
+    what `corrects_operator` is for. Ayala publishes a longitude for Serin that
+    is 76 km west of its own address, in the sea.
 ``osm``
     A named ``shop=mall`` feature in OpenStreetMap, matched by name. One
     Overpass query returns every retail feature in the Philippines, so this
@@ -20,11 +23,16 @@ Three sources, in descending order of trust:
     land on a street or a town rather than on the building.
 
 Every candidate is validated before it is accepted: it must fall inside the
-Philippine bounding box, and the region implied by its coordinates must equal
-the region already recorded for that property. That second test is what stops
-"SM City Cebu" from matching an "SM City" in Manila. A candidate that fails is
-discarded rather than downgraded, because a confidently wrong pin is worse on a
-map than a missing one.
+Philippine bounding box, something the query asked for must appear in the
+answer, and where that something is only a street or a barangay the region must
+agree as well. A candidate that fails is discarded rather than downgraded,
+because a confidently wrong pin is worse on a map than a missing one.
+
+The last check is the coordinate itself. Where a property came with an address,
+whatever is at the chosen coordinate is looked up and has to be somewhere that
+address mentions; this is what tells two buildings of the same name apart, and
+`mallscape geocode --verify` runs it over every placed property including the
+operator tier.
 
 Results land in ``registry/mall_coordinates.json``, which is committed. Normal
 runs read it and never touch the network. ``mallscape geocode`` is the only
@@ -57,6 +65,27 @@ GEO_COLUMNS = ("lat", "lon", "geo_source", "geo_precision")
 _GENERIC = frozenset({
     "mall", "malls", "the", "shopping", "center", "centre", "complex",
     "supermarket", "hypermarket", "department", "store", "branch", "inc",
+})
+
+# Structural words in an address: they say what kind of thing a component is,
+# never which one. `supported` has to ignore them, because "Pasig City" and
+# "Quezon City" share a word and sharing it is not agreement. That single word
+# is what let a Quezon City node keep the pin for a Pasig property.
+_ADDRESS_FILLER = frozenset({
+    "city", "cities", "municipality", "province", "district", "zone", "region",
+    "street", "st", "avenue", "ave", "road", "rd", "boulevard", "blvd",
+    "highway", "hwy", "corner", "cor", "barangay", "brgy", "bgy", "poblacion",
+    "sitio", "purok", "subdivision", "subd", "compound", "phase", "block",
+    "floor", "level", "bldg", "building", "tower", "annex", "wing", "philippines",
+})
+
+# Words that appear in place names all over the country and so agree by
+# accident: honorifics, articles, and bare numbers. "San Jose del Monte,
+# Bulacan" and "San Fernando, Pampanga" share "san" and "del" and nothing else,
+# and one shared word is all `supported` asks for.
+_WEAK_TOKENS = frozenset({
+    "san", "santa", "santo", "sta", "sto", "sn", "de", "del", "dela", "las",
+    "los", "la", "el", "new", "old", "upper", "lower", "poblacion",
 })
 
 # A name match this close is a candidate at all; below it, nothing is considered.
@@ -128,6 +157,20 @@ def save(entries: dict[str, dict]) -> None:
     REGISTRY.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
 
 
+def usable(entry: dict | None) -> bool:
+    """Whether a registry entry carries coordinates that are actually numbers.
+
+    `attach` coerces its output with `errors="coerce"`, so a lat of "" or null
+    lands as NaN with `geo_source` and `geo_precision` still saying `osm/exact`.
+    On an operator-placed row an entry like that would replace a good
+    coordinate with a hole wearing a confident label, which is the one outcome
+    the override was built to prevent.
+    """
+    if not entry:
+        return False
+    return coords_of(entry) is not None
+
+
 def is_operator_placed(row) -> bool:
     """Whether the chain's own API supplied this coordinate.
 
@@ -161,10 +204,25 @@ def attach(malls: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     entries = load()
 
     missing: list[str] = []
+    corrected: list[str] = []
     for i, row in malls.iterrows():
+        entry = entries.get(key_of(row["chain"], row["mall_id"]))
         if is_operator_placed(row):
-            continue
-        hit = entries.get(key_of(row["chain"], row["mall_id"]))
+            # "Nothing can beat the operator" held until Ayala published a
+            # longitude 0.7 degrees west of its own address, which put Ayala
+            # Malls Serin in the West Philippine Sea. An operator can be wrong,
+            # so the registry may say so - but only in writing, per property,
+            # with the evidence in `corrects_operator`.
+            if not (entry and entry.get("corrects_operator")):
+                continue
+            if not usable(entry):
+                print(
+                    f"[geocode] ignoring the override for "
+                    f"{key_of(row['chain'], row['mall_id'])}: its coordinates are not numbers"
+                )
+                continue
+            corrected.append(key_of(row["chain"], row["mall_id"]))
+        hit = entry if usable(entry) else None
         if hit is None:
             # Clear rather than keep: a coordinate the registry no longer
             # vouches for is not evidence, and leaving it would make the
@@ -180,6 +238,8 @@ def attach(malls: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
 
     malls["lat"] = pd.to_numeric(malls["lat"], errors="coerce")
     malls["lon"] = pd.to_numeric(malls["lon"], errors="coerce")
+    if corrected:
+        print(f"[geocode] overrode {len(corrected)} operator coordinate(s): {sorted(corrected)}")
     return malls, missing
 
 
@@ -411,6 +471,62 @@ def place_match(name: str, hit: dict) -> int:
     return 0
 
 
+def hit_tokens(hit: dict, place_only: bool = False) -> set[str]:
+    """Every word the hit uses to describe itself and where it is.
+
+    `place_only` keeps the settlement and street fields and drops everything
+    that names the feature. A check run *after* a match must not read the name
+    back: reverse-geocoding the coordinate we just picked returns the very
+    feature we picked it from, and Nominatim repeats that feature's name inside
+    the address breakdown too, under a key named for its class ("shop": "The
+    Strip Mall"). Both routes let a Quezon City node corroborate itself as a
+    Pasig property. Where it is has to answer on its own.
+    """
+    address = hit.get("address") or {}
+    if place_only:
+        parts = [address.get(k) for k in (*_SETTLEMENT_KEYS, *_LOCAL_KEYS)]
+    else:
+        parts = [hit.get("name"), *address.values()]
+    text = " ".join(str(v) for v in parts if v)
+    return set(normalize_name(text).split()) - _GENERIC
+
+
+def distinctive(tokens: set[str]) -> set[str]:
+    """The words in a place name that identify *which* place it is."""
+    return {t for t in tokens - _ADDRESS_FILLER - _WEAK_TOKENS if not t.isdigit()}
+
+
+def supported(query: str, hit: dict, place_only: bool = False) -> bool:
+    """Whether the hit repeats anything distinctive from what we asked for.
+
+    Being inside the right region is not evidence. A region is a quarter of the
+    country, so "in the right region" was satisfied by the Urdaneta Philippines
+    Temple in Pangasinan for a query about WalterMart Balanga in Bataan, and by
+    Robinsons Starmills in Pampanga for Robinsons Gapan in Nueva Ecija. Both
+    were recorded as confident pins, 140 km and 40 km from the property.
+
+    So a candidate no better than "somewhere in Luzon" is dropped rather than
+    downgraded: the query has to appear in the answer, either in the venue's own
+    name or somewhere in its address. Any single distinctive word does, because
+    a query is usually a brand plus a town and either one carries real
+    information - but only a *distinctive* one, or "Pasig City" and "Quezon
+    City" agree, and so do San Fernando and San Jose del Monte.
+
+    When that filtering empties either side it has taken the answer with it: a
+    property whose whole name is a filler word (The Block, a barangay called
+    Zone) has nothing left to match on. There the unfiltered words are all
+    there is, so they are what gets compared.
+    """
+    ours = set(normalize_name(query).split()) - _GENERIC
+    if not ours:
+        return False
+    theirs = hit_tokens(hit, place_only)
+    strong_ours, strong_theirs = distinctive(ours), distinctive(theirs)
+    if strong_ours and strong_theirs:
+        return bool(strong_ours & strong_theirs)
+    return bool((ours - {"philippines"}) & theirs)
+
+
 def coords_of(hit: dict) -> tuple[float, float] | None:
     """The hit's coordinate, or None when it is absent or not a number.
 
@@ -488,7 +604,7 @@ def geocode_one(fetcher: Fetcher, name: str, address: str | None, region: str | 
                 "addressdetails": "1",
             },
         )
-        best = None
+        ranked: list[tuple[tuple[int, int, int], dict, float, float, int]] = []
         for order, hit in enumerate(results or []):
             here, rank = coords_of(hit), place_rank_of(hit)
             if here is None or rank is None or rank < _MIN_PLACE_RANK:
@@ -499,17 +615,38 @@ def geocode_one(fetcher: Fetcher, name: str, address: str | None, region: str | 
             # Same rule as the OSM tier: the name and the region are separate
             # kinds of evidence, and one of them has to be convincing.
             named = by_name and score(name, hit.get("name") or "") >= _RATIO_ACCEPT
-            if not named and not region_agrees(region, lat, lon):
+            # What, other than the name, explains this hit. For a query built
+            # from the property name, that is where the rest of the name turns
+            # up in the hit's address; for a query built from the address, it
+            # is whether the hit repeats any of it.
+            explained = place_match(name, hit) if by_name else 2 * int(supported(query, hit))
+            if not named and not explained:
+                # Nothing but "somewhere in the right quarter of the country",
+                # which is how the Urdaneta Philippines Temple in Pangasinan
+                # became WalterMart Balanga in Bataan, 140 km away.
+                continue
+            if not named and explained < 2 and not region_agrees(region, lat, lon):
+                # Only a street or a barangay agrees, and those repeat across
+                # towns, so the region has to agree as well. A town or province
+                # match stands on its own: the region boxes are coarse enough
+                # to put Bataan outside north-luzon, and they were losing the
+                # correct Balanga hit for exactly that reason.
                 continue
             # Rank rather than take the first. A region is a quarter of the
             # country, so "the first result that is in the right region" is
             # barely a choice at all, and it put two WalterMart branches on one
             # coordinate. Nominatim's own order breaks ties, and only ties.
-            key = (int(named), place_match(name, hit) if by_name else 0, -order)
-            if best is None or key > best[0]:
-                best = (key, hit, lat, lon, rank)
-        if best is not None:
-            _, hit, lat, lon, rank = best
+            key = (int(named), explained, -order)
+            ranked.append((key, hit, lat, lon, rank))
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        for _, hit, lat, lon, rank in ranked:
+            # A name can match a different building of the same name, so ask
+            # what is at the coordinate before returning it. Rejecting here
+            # rather than after the fact is what lets the ladder keep going:
+            # "The Strip" matches a Quezon City node on both tiers, and only a
+            # query built from its address reaches Capitol Commons in Pasig.
+            if disagrees(fetcher, address, lat, lon):
+                continue
             # place_rank rises with specificity: 30 is a building, 26 a street,
             # under 22 a town or larger. Say which one we got instead of
             # implying every pin is equally precise.
@@ -523,7 +660,9 @@ def geocode_one(fetcher: Fetcher, name: str, address: str | None, region: str | 
                 "matched": hit.get("display_name", "")[:120],
                 "ref": f"{hit.get('osm_type', '?')}/{hit.get('osm_id', '?')}",
             }, ""
-        if results:
+        if ranked:
+            reason = "every candidate was somewhere the address does not mention"
+        elif results:
             reason = "results outside region or bounds"
     return None, reason
 
@@ -561,51 +700,172 @@ def refresh(malls: pd.DataFrame, cache_dir: Path) -> tuple[dict[str, dict], str]
         features = fetch_osm_features(osm)
         lines.append(f"[geocode] {len(features):,} OSM retail features in scope")
         unmatched = []
+        proposed = []
         for row in todo:
             hit, reason = best_match(row["mall_name"], row.get("region"), features)
             if hit is None:
                 unmatched.append((row, reason))
                 continue
-            entries[key_of(row["chain"], row["mall_id"])] = {
+            proposed.append((row, {
                 "lat": round(hit["lat"], 6),
                 "lon": round(hit["lon"], 6),
                 "source": "osm",
                 "precision": "exact",
                 "matched": hit["names"][0],
                 "ref": hit["id"],
-            }
-        lines.append(f"[geocode] OSM matched {len(todo) - len(unmatched)}, {len(unmatched)} left")
+            }))
     finally:
         osm.close()
 
-    if unmatched:
-        nom = Fetcher(
-            cache_dir,
-            rate=config.GEOCODE_RATE,
-            headers={"User-Agent": config.GEOCODER_USER_AGENT},
-        )
-        try:
-            failed = []
-            for row, _ in unmatched:
-                entry, reason = geocode_one(
-                    nom, row["mall_name"], text_of(row.get("address")), text_of(row.get("region"))
+    nom = Fetcher(
+        cache_dir,
+        rate=config.GEOCODE_RATE,
+        headers={"User-Agent": config.GEOCODER_USER_AGENT},
+    )
+    try:
+        # Check the name match against the address before trusting it, and send
+        # anything that fails down to the tier that reads addresses.
+        for row, entry in proposed:
+            complaint = address_disagrees(nom, row, entry)
+            if complaint:
+                lines.append(
+                    f"[geocode]   rejected OSM {entry['ref']} for "
+                    f"{key_of(row['chain'], row['mall_id'])}: {complaint}"
                 )
-                if entry is None:
-                    failed.append(f"{key_of(row['chain'], row['mall_id'])} ({reason})")
-                    continue
-                entries[key_of(row["chain"], row["mall_id"])] = entry
-        finally:
-            nom.close()
-        lines.append(
-            f"[geocode] Nominatim matched {len(unmatched) - len(failed)}, {len(failed)} unresolved"
-        )
-        for item in sorted(failed):
-            lines.append(f"[geocode]   unresolved: {item}")
+                unmatched.append((row, f"OSM match rejected: {complaint}"))
+                continue
+            entries[key_of(row["chain"], row["mall_id"])] = entry
+        lines.append(f"[geocode] OSM matched {len(todo) - len(unmatched)}, {len(unmatched)} left")
+
+        failed = []
+        for row, _ in unmatched:
+            entry, reason = geocode_one(
+                nom, row["mall_name"], text_of(row.get("address")), text_of(row.get("region"))
+            )
+            if entry is None:
+                failed.append(f"{key_of(row['chain'], row['mall_id'])} ({reason})")
+                continue
+            # geocode_one already checked its own candidates against the
+            # address, one rung at a time, so there is nothing left to re-ask.
+            entries[key_of(row["chain"], row["mall_id"])] = entry
+    finally:
+        nom.close()
+    lines.append(
+        f"[geocode] Nominatim matched {len(unmatched) - len(failed)}, {len(failed)} unresolved"
+    )
+    for item in sorted(failed):
+        lines.append(f"[geocode]   unresolved: {item}")
 
     save(entries)
     lines.extend(collisions(entries))
     lines.append(f"[geocode] registry now holds {len(entries):,} entries -> {REGISTRY}")
     return entries, "\n".join(lines)
+
+
+def reverse_hit(fetcher: Fetcher, lat: float, lon: float) -> dict | None:
+    """What OpenStreetMap says is at a coordinate, in the shape `supported` reads.
+
+    None means nothing is there. Nominatim answers a reverse lookup in open
+    water with an error rather than a place, which is the only cheap way to ask
+    "is this pin even on land".
+    """
+    body = fetcher.get_json(
+        config.NOMINATIM_REVERSE_URL,
+        {"lat": f"{lat:.6f}", "lon": f"{lon:.6f}", "format": "jsonv2", "addressdetails": "1"},
+    )
+    if not isinstance(body, dict) or body.get("error"):
+        return None
+    address = body.get("address")
+    if not isinstance(address, dict) or not address:
+        # A response with no usable address breakdown says nothing about where
+        # this is, and "says nothing" must not read as "is not on land".
+        return None
+    return {"name": body.get("name") or "", "address": address}
+
+
+def disagrees(fetcher: Fetcher, address: str | None, lat: float, lon: float) -> str | None:
+    """Why this coordinate cannot be this property, or None if nothing says so.
+
+    The check only runs when the property came with an address, because an
+    address is the one piece of evidence a name match did not already use: the
+    OSM tier matches on name and region alone, and "The Strip" matched a node
+    called "The Strip Mall" in Quezon City for a property whose own address
+    says Capitol Commons, Pasig. Both names are the same and both places are in
+    Metro Manila, so nothing in the matcher could tell them apart. Asking what
+    is at the coordinate can.
+
+    Only the address speaks here, never the property name. Reading the name in
+    as well is how a reverse result of {"village": "Ayala", "city": "Makati"}
+    would corroborate Ayala Malls Serin in Tagaytay: the brand is in the name,
+    the brand turns up in half the villages in the country, and neither
+    Tagaytay nor Cavite was ever checked.
+
+    Without an address there is nothing to check against, and an uncorroborated
+    pin still beats no pin at all, so those are kept.
+    """
+    if not address:
+        return None
+    here = reverse_hit(fetcher, lat, lon)
+    if here is None:
+        return "nothing is at that coordinate"
+    if supported(address, here, place_only=True):
+        return None
+    where = ", ".join(str(here["address"].get(k)) for k in _SETTLEMENT_KEYS if here["address"].get(k))
+    return f"reverse lookup says {where or 'nowhere named'}, which the address does not mention"
+
+
+def address_disagrees(fetcher: Fetcher, row: dict, entry: dict) -> str | None:
+    """`disagrees` for a mall row and a registry entry."""
+    return disagrees(fetcher, text_of(row.get("address")), entry["lat"], entry["lon"])
+
+
+def verify_placements(fetcher: Fetcher, malls: pd.DataFrame) -> tuple[list[str], int]:
+    """Ask what is actually at every pin, and report the ones nothing explains.
+
+    Choosing a coordinate and checking one are different questions, and the
+    checking one is the only one that catches a coordinate we never chose. The
+    operator tier is unchecked by construction - it arrives with the scrape and
+    the matcher never sees it - so a longitude Ayala got wrong reached the map
+    with the highest trust label in the system and stayed there until someone
+    noticed a mall drawn in the sea.
+
+    Two verdicts. `unplaced` means the reverse lookup found nothing at all,
+    which for a shopping mall means water or wilderness; it is never a false
+    alarm. `unexplained` means something is there but its address repeats
+    nothing from the property's own name or address; it is a prompt to look,
+    and it does misfire on properties whose only name is a barangay the reverse
+    lookup did not happen to mention.
+    """
+    placed = malls[malls["lat"].notna()]
+    hard: list[str] = []
+    soft: list[str] = []
+    for row in placed.to_dict("records"):
+        key = key_of(row["chain"], row["mall_id"])
+        lat, lon = float(row["lat"]), float(row["lon"])
+        here = reverse_hit(fetcher, lat, lon)
+        label = f"{key} ({row['geo_source']}/{row['geo_precision']}) at {lat:.5f},{lon:.5f}"
+        if here is None:
+            hard.append(f"[geocode]   unplaced: {label} - nothing is at this coordinate")
+            continue
+        address = text_of(row.get("address"))
+        if address is None:
+            # Nothing to check the pin against. Most WalterMart branches arrive
+            # with no address at all, and flagging every one of them as
+            # unexplained would bury the pins that are genuinely wrong.
+            continue
+        if not supported(address, here, place_only=True):
+            where = ", ".join(
+                str(here["address"].get(k)) for k in _SETTLEMENT_KEYS if here["address"].get(k)
+            )
+            soft.append(f"[geocode]   unexplained: {label} - reverse lookup says {where or 'nowhere named'}")
+    lines = [f"[geocode] verified {len(placed)} placed properties"]
+    lines += hard
+    if soft:
+        lines.append(f"[geocode] {len(soft)} pins whose address explains nothing about the property:")
+        lines += soft
+    if not hard and not soft:
+        lines.append("[geocode] every pin is on land and consistent with its address")
+    return lines, len(hard)
 
 
 def collisions(entries: dict[str, dict]) -> list[str]:

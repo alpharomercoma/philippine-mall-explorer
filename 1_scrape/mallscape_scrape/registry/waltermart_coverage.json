@@ -1,0 +1,4 @@
+{
+ "_comment": "WalterMart branches with no published tenant directory beyond what the branches API maps. Checked 2026-08-31 against Wikipedia's WalterMart article. Altaraza (San Jose del Monte, Bulacan) is not linked from /malls/ but IS named by the branches API, so it is scraped as a property; the API maps only its own supermarket to it, which the thin-mall report flags.",
+ "not_in_api": []
+}

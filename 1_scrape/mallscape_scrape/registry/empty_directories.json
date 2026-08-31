@@ -1,0 +1,45 @@
+{
+  "_comment": "Properties that exist and operate but publish no tenant directory, each confirmed against the operator's own live site on the date recorded. A zero-tenant mall is normally a defect in this pipeline, so every one of them has to be either fixed or accounted for here; anything empty and absent from this file is reported as an unexplained defect by `mallscape scrape`. Re-verify a `checked` date that has gone stale rather than trusting it: SM City La Union was in this position on 2026-07-26 and served 199 tenants on 2026-08-30.",
+  "entries": {
+    "megaworld:the-shoppes-at-mckinley-west": {
+      "name": "The Shoppes at McKinley West",
+      "evidence": "Listed in Megaworld's mall feed as uid bltd1ea5541ca1324e8. All 2,101 entries of the chain-wide tenant feed were scanned and not one references that uid.",
+      "checked": "2026-08-30"
+    },
+    "robinsons:cybergate-bacolod": {
+      "name": "Robinsons Cybergate Bacolod",
+      "evidence": "The mall-info page loads and is titled, but its directory container holds no store-name elements, and vmd.robinsonsmalls.com lists no Cybergate Bacolod page to fall back to. Recorded in robinsons_coverage.json as the one property with a page but no directory.",
+      "checked": "2026-08-30"
+    },
+    "sm:sm-city-zamboanga": {
+      "name": "SM City Zamboanga",
+      "evidence": "The tenants API returns counts:0 for mallCode SMZA, and the public directory page /mall-directory/sm-city-zamboanga/shops/ answers 404.",
+      "checked": "2026-08-30"
+    },
+    "sm:sm-makati": {
+      "name": "SM Makati",
+      "evidence": "The tenants API returns counts:0 for mallCode SMKT, and the public directory page /mall-directory/sm-makati/shops/ answers 404.",
+      "checked": "2026-08-30"
+    },
+    "waltermart:mabalacat": {
+      "name": "WalterMart Mabalacat",
+      "evidence": "The mall page offers no category links, and all six category pages render the empty-state alert 'No store available.' with no tenant anchors.",
+      "checked": "2026-08-30"
+    },
+    "waltermart:san-pascual": {
+      "name": "WalterMart San Pascual",
+      "evidence": "The mall page offers no category links, and all six category pages render the empty-state alert 'No store available.' with no tenant anchors.",
+      "checked": "2026-08-30"
+    },
+    "waltermart:silang": {
+      "name": "WalterMart Silang",
+      "evidence": "The mall page offers no category links, and all six category pages render the empty-state alert 'No store available.' with no tenant anchors.",
+      "checked": "2026-08-30"
+    },
+    "waltermart:waltermart-san-rafael": {
+      "name": "WalterMart San Rafael",
+      "evidence": "New to the mall list this run, replacing the delisted Pasay branch. Its category pages render 'No store available.' with no tenant anchors.",
+      "checked": "2026-08-30"
+    }
+  }
+}

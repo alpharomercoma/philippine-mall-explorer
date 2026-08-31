@@ -3,15 +3,16 @@
 A reproducible dataset of what is inside Philippine malls, and a site for
 exploring it.
 
-**303 properties, 40,462 store listings, 10,299 brands, 10 operators.**
-**294 properties are placed on a map.**
+**304 properties, 41,789 store listings, 10,407 brands, 10 operators.**
+**297 properties are placed on a map.** Refreshed monthly by a scheduled
+workflow; the page and this table say which snapshot they were built from.
 
 | | |
 |---|---|
 | Live site | <https://alpharomercoma.github.io/philippine-mall-explorer/> |
 | Explore locally | `make dev`, then <http://localhost:3000> |
-| Data | [`data/snapshots/2026-07-26/`](data/snapshots/2026-07-26/) |
-| Breakdown | [`breakdown.md`](data/snapshots/2026-07-26/3_report/breakdown.md) |
+| Data | [`data/snapshots/2026-08-30/`](data/snapshots/2026-08-30/) |
+| Breakdown | [`breakdown.md`](data/snapshots/2026-08-30/3_report/breakdown.md) |
 | Design | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Mistakes worth not repeating | [docs/PITFALLS.md](docs/PITFALLS.md) |
 
@@ -53,11 +54,15 @@ re-parsing is free and offline.
 
 ```bash
 uv run mallscape geocode
+uv run mallscape geocode --verify   # and check every pin against what is at it
 ```
 
 Resolves coordinates for properties the committed registry cannot already
-place, and is the only command that needs the network for the map. Ordinary
-runs read
+place, and is the only command that needs the network for the map. `--verify`
+adds one reverse lookup per placed property and fails if any pin has nothing at
+it, which is how a mall drawn in the West Philippine Sea was found; it is the
+only check that reads operator-supplied coordinates, which the matcher never
+sees. Ordinary runs read
 [`registry/mall_coordinates.json`](1_scrape/mallscape_scrape/registry/mall_coordinates.json)
 and stay offline, so the map is reproducible. Run this only when a scrape finds
 properties that are new.
@@ -107,13 +112,13 @@ the search box and the brand focus apply to both. See
 
 | operator | properties | malls | listings |
 |---|---:|---:|---:|
-| SM Supermalls | 126 | 100 | 19,640 |
-| Robinsons Malls | 54 | 54 | 8,392 |
-| Ayala Malls | 32 | 32 | 5,640 |
-| Megaworld Lifestyle Malls | 26 | 26 | 2,118 |
-| WalterMart | 46 | 46 | 1,497 |
-| Ortigas Land | 4 | 4 | 1,279 |
-| Filinvest Malls | 5 | 5 | 956 |
+| SM Supermalls | 126 | 95 | 19,843 |
+| Robinsons Malls | 54 | 54 | 8,464 |
+| Ayala Malls | 32 | 32 | 5,986 |
+| WalterMart | 47 | 47 | 2,220 |
+| Megaworld Lifestyle Malls | 26 | 26 | 2,101 |
+| Ortigas Land | 4 | 4 | 1,282 |
+| Filinvest Malls | 5 | 5 | 953 |
 | Fisher Mall | 2 | 2 | 342 |
 | Araneta City | 4 | 4 | 319 |
 | Starmall | 4 | 4 | 279 |
@@ -136,21 +141,40 @@ in `breakdown.md` with the evidence.
 
 ## Accuracy limits
 
-- **WalterMart totals are a floor.** Its category pages cap at 10 tenants
-  server side and no parameter lifts the cap.
 - **Ayala listing counts run about 7 percent high.** Its API returns duplicate
   merchant rows with no distinguishing fields. Brand presence is unaffected.
 
-- **9 properties have no coordinate** and are absent from the map, which says
+- **7 properties have no coordinate** and are absent from the map, which says
   so under it rather than quietly dropping them. Most are SMDC retail podiums
   that no public gazetteer lists.
-- **9 properties publish no tenant directory at all.** Each was verified
-  against the operator's own source: SM's API returns `counts: 0` for three
-  malls while a control returns 357, WalterMart's pages carry no tenant
-  anchors, and Ayala Vermosa is flagged `explore: false` upstream.
+- **8 properties publish no tenant directory at all.** Each is recorded with
+  its evidence in `registry/empty_directories.json` and left off the site,
+  which says how many were withheld. A property whose empty answer is not in
+  that registry fails the run report loudly instead of shipping quietly.
 - **Roughly 10 percent of listings still have no category.** Robinsons and
   Fisher Mall publish none, and propagation can only fill a gap for a brand
   labelled somewhere else.
+
+## Refreshing on a schedule
+
+`.github/workflows/rescrape.yml` re-scrapes every operator monthly (06:00
+Manila time on the 2nd; the cron line in that file is the one place to change
+the cadence, and the workflow can also be run on demand from the Actions tab).
+It geocodes anything new, verifies every pin, rebuilds the data and the site,
+runs the full checks, commits the new snapshot to main, and deploys to GitHub
+Pages. A failed month publishes nothing: the site keeps serving the last good
+snapshot, and the failure is visible in Actions.
+
+Two guards keep an unattended run honest. A chain that loses more than half
+its listings against the previous snapshot stops the run, because that is
+usually the operator's site breaking rather than the malls emptying
+(`MALLSCAPE_ACCEPT_COLLAPSE` accepts a real shrink for one run). And a mall
+that returns zero tenants is re-asked against the live site before being
+believed.
+
+The page says which snapshot it was built from, and its footer links the CSV,
+Parquet and JSON for exactly that snapshot, so downstream consumers can pin a
+month and reprocess it.
 
 ## Configuration
 
@@ -168,7 +192,7 @@ make e2e     # drives the built site in a real browser
 
 | layer | what it protects |
 |---|---|
-| lint | style and dead code, via ruff |
+| lint | style and unused imports, via ruff |
 | unit | parsers against frozen fixtures, with exact expected counts |
 | integration | the handoff between stages, including carry-forward and schema |
 | end to end | the built site: bundle validity, search, virtualization, mobile layout, map plotting and filtering, no script errors |

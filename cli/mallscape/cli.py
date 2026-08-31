@@ -10,7 +10,7 @@ from __future__ import annotations
 import typer
 
 from mallscape_clean import pipeline as clean_stage
-from mallscape_core import storage
+from mallscape_core import config, storage
 from mallscape_report import pipeline as report_stage
 from mallscape_scrape import pipeline as scrape_stage
 from mallscape_scrape.registry_of_scrapers import SCRAPERS
@@ -30,7 +30,9 @@ def _resolve(date: str | None) -> str:
 def scrape(
     chain: str = typer.Option("all", help=f"one of {', '.join(SCRAPERS)}, or 'all'"),
     date: str = typer.Option(None, help="snapshot date (YYYY-MM-DD), default today"),
-    rate: float = typer.Option(3.0, help="max requests per second"),
+    rate: float = typer.Option(
+        config.REQUEST_RATE, help="max requests per second, default MALLSCAPE_REQUEST_RATE"
+    ),
 ):
     """Stage 1. Fetch directories and write malls plus stores."""
     if chain != "all" and chain not in SCRAPERS:
@@ -47,6 +49,9 @@ def geocode(
     offline: bool = typer.Option(
         False, "--offline", help="re-apply the committed registry, no network"
     ),
+    verify: bool = typer.Option(
+        False, "--verify", help="reverse-check every pin against what is at it"
+    ),
 ):
     """Stage 1b. Resolve coordinates for properties the registry cannot place.
 
@@ -57,9 +62,14 @@ def geocode(
     holds. That is the repair for a snapshot whose coordinates went to the
     wrong rows: the registry is the record, so replaying it is deterministic
     and costs nothing.
+
+    `--verify` asks what is actually at each pin, one reverse lookup per placed
+    property, and fails the command if any of them is not on land. It is the
+    only check that reads operator-supplied coordinates, which nothing else
+    validates.
     """
     run_date = _resolve(date)
-    scrape_stage.geocode_run(run_date, offline=offline)
+    scrape_stage.geocode_run(run_date, offline=offline, verify=verify)
     storage.publish_latest(run_date)
 
 
@@ -83,7 +93,9 @@ def report(date: str = typer.Option(None, help="snapshot date, default newest us
 def website(
     date: str = typer.Option(None, help="snapshot date, default newest usable"),
     serve: bool = typer.Option(False, "--serve", help="serve the site after building"),
-    port: int = typer.Option(3000, help="port used by --serve"),
+    port: int = typer.Option(
+        config.SITE_PORT, help="port used by --serve, default MALLSCAPE_SITE_PORT"
+    ),
 ):
     """Stage 4. Build the static site, optionally serving it."""
     run_date = _resolve(date)

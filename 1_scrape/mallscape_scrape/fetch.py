@@ -6,6 +6,7 @@ iterations (and validation re-runs on the same day) never re-hit the sites.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
@@ -68,6 +69,23 @@ class Fetcher:
         )
         self.requests_made = 0
         self.cache_hits = 0
+        self._bypass = False
+
+    @contextlib.contextmanager
+    def bypass_cache(self):
+        """Serve every request inside the block from the network.
+
+        A cached response is a record of one moment. When a directory comes
+        back empty, that moment is exactly what is in doubt, so the retry has
+        to reach past the cache or it just re-reads the same emptiness. The
+        fresh body replaces the cached one, so the snapshot's raw record still
+        matches what was parsed.
+        """
+        previous, self._bypass = self._bypass, True
+        try:
+            yield self
+        finally:
+            self._bypass = previous
 
     def _cache_path(self, url: str, params: dict | None) -> Path:
         qs = urllib.parse.urlencode(sorted(params.items())) if params else ""
@@ -97,7 +115,7 @@ class Fetcher:
 
     def get_text(self, url: str, params: dict | None = None, force: bool = False) -> str:
         cache = self._cache_path(url, params)
-        if cache.exists() and not force:
+        if cache.exists() and not force and not self._bypass:
             self.cache_hits += 1
             return cache.read_text(encoding="utf-8")
         body = self._request(url, params)

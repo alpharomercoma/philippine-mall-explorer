@@ -1,0 +1,14 @@
+{
+ "_comment": "Megaworld lifestyle-mall properties absent from megaworld-lifestylemalls.com's Contentstack space. Checked 2026-08-31 against Wikipedia's Megaworld Lifestyle Malls article; every other operating property maps to a scraped row (some under wing-level names).",
+ "not_in_api": [
+  {
+   "name": "Clark Cityfront Mall",
+   "region": "north-luzon",
+   "location": "Clark Freeport Zone, Pampanga",
+   "opened": null,
+   "property_type": "mall",
+   "note": "Operating per Wikipedia, absent from the CMS's mall entries.",
+   "directory_source": null
+  }
+ ]
+}

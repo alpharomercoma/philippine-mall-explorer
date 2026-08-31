@@ -57,9 +57,21 @@ makes `place()` idempotent.
 
 **Silence must never mean success.** A scraper that cannot derive its mall list
 live verifies its hardcoded roster against the site on every run and warns on
-drift. A known-empty mall is recorded in `registry/<chain>_coverage.json` so it
-stays explained instead of being re-investigated. Truncation is reported: the
-WalterMart scraper warns for every category that hits that site's 10-item cap.
+drift. A property the operator does not list at all is recorded in
+`registry/<chain>_coverage.json` so it stays explained instead of being
+re-investigated. Truncation is routed around where a route exists: WalterMart's
+per-mall pages cap at 10 tenants per category, so that scraper reads the
+chain-wide store index and each store's branch API instead.
+
+**A zero is re-asked before it is believed.** A mall that yields no tenants is
+scraped a second time with the HTTP cache bypassed, because a cached body
+cannot tell an empty directory apart from a failed request - SM City La Union
+published nothing in July and 199 tenants in August. Only an empty answer from
+the live network is recorded, and it then has to be accounted for in
+`registry/empty_directories.json`, with evidence and a date. Anything empty and
+absent from that file is reported as an unexplained defect. Malls holding under
+a quarter of their chain's median are named in the same report, which is how
+five grocery stores classified as malls were found.
 
 `registry/unscraped_chains.json` records operators that were investigated and
 deliberately not scraped, with the evidence and what would have to change.

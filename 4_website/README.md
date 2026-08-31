@@ -72,41 +72,22 @@ Every value from the data is written with `textContent`. There is no
 into the map: cluster labels and popups are passed to Leaflet as DOM nodes,
 which it appends rather than parses. The page runs under a strict Content
 Security Policy with no inline script and exactly one remote origin, the tile
-host, enforced locally by the dev server and in production by `vercel.json` or
-the Pages workflow.
+host, carried in the page itself so every host enforces it.
 
 ## Hosting
 
-The output is a plain directory of static files.
+Live at <https://alpharomercoma.github.io/philippine-mall-explorer/>. The
+output is a plain directory of static files.
 
 - **Local**: `uv run mallscape website --serve`, which also applies the same
-  cache and security headers as production so local behaviour matches.
-- **GitHub Pages**: `.github/workflows/pages.yml` publishes the directory and
-  fails the deploy if `index.html` points at a bundle that is not committed.
-- **Vercel**: `vercel.json` sets the output directory and headers. No build
-  command, because there is nothing to build.
-
-### Hosting
-
-Live at <https://alpharomercoma.github.io/philippine-mall-explorer/>.
-
-```bash
-make deploy      # build, then publish to the gh-pages branch
-```
-
-Pages serves the `gh-pages` branch from its root, so `4_website/deploy/publish.sh`
-copies the site directory to the top level of an orphan branch. That route was
-chosen deliberately over a workflow: pushing anything into `.github/workflows/`
-requires a token carrying the `workflow` scope, which the default one does not
-have, so a workflow-based deploy fails at `git push` for most contributors.
-
-The script refuses to publish if `index.html` points at a bundle that is not
-present, which is the one failure that would otherwise produce a live page
-showing nothing. It also writes `.nojekyll`, without which Pages runs the files
-through Jekyll and drops anything it does not recognize.
-
-An Actions workflow is still available at `4_website/deploy/github-pages.yml`
-for anyone who does have the scope: move it to `.github/workflows/` and switch
-the Pages source to "GitHub Actions".
-
-Vercel needs none of this. Point it at the repo and `vercel.json` does the rest.
+  cache headers as production so local behaviour matches.
+- **GitHub Pages**: `.github/workflows/pages.yml` publishes the directory on
+  every push to main that touches it, and fails the deploy if `index.html`
+  points at a bundle that is not committed. Set the repository's Pages source
+  to "GitHub Actions" once. `.github/workflows/rescrape.yml` refreshes the
+  data monthly and deploys the same way.
+- **Vercel**: `vercel.json` sets the output directory, cache headers, and the
+  frame protections that only an HTTP header can carry. It deliberately sends
+  no resource CSP: the page's own meta tag carries the full policy, derived
+  from the configured tile URL at build time, so the two can never disagree
+  about which origins are allowed.

@@ -29,8 +29,8 @@ site:  ## stage 4: build the static site
 dev:  ## build and serve on http://localhost:3000
 	uv run mallscape website --serve
 
-deploy: site  ## publish the built site to GitHub Pages
-	./4_website/deploy/publish.sh
+deploy:  ## trigger the GitHub Pages deploy workflow (pushes to main also deploy)
+	gh workflow run pages.yml
 
 check: lint test integration  ## everything that runs without a browser
 	@echo "check passed"
@@ -44,5 +44,5 @@ test:  ## unit tests
 integration:  ## stage handoff tests
 	uv run pytest tests/test_integration.py -q
 
-e2e:  ## drive the built site in a browser (needs `make all` first)
+e2e:  ## drive the built site in a browser (run `make all` first)
 	uv run pytest tests/test_e2e.py -q

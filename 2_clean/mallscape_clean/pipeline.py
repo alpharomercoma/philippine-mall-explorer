@@ -28,5 +28,6 @@ def run(run_date: str) -> dict[str, float]:
     print(f"  brands: {stats['brands']:,} distinct")
     print(f"  categories mapped: {stats['category_mapped']:.1%}")
     print(f"  floors with a numeric level: {stats['floor_resolved']:.1%}")
-    print(f"  rows carrying a dq flag: {flagged:,} ({flagged / len(cleaned):.1%})")
+    share = flagged / len(cleaned) if len(cleaned) else 0.0
+    print(f"  rows carrying a dq flag: {flagged:,} ({share:.1%})")
     return stats

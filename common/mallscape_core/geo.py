@@ -13,8 +13,6 @@ from __future__ import annotations
 import re
 import unicodedata
 
-# Order matters: Metro Manila is checked first because provincial place names
-# also appear as street names inside MM addresses ("Legazpi Street, Makati").
 METRO_MANILA = (
     "makati", "taguig", "pasig", "marikina", "paranaque", "caloocan",
     "mandaluyong", "pasay", "las pinas", "muntinlupa", "malabon", "navotas",
@@ -36,7 +34,7 @@ SOUTH_LUZON = (
     "naga city", "binan", "santa rosa", "sta rosa", "nuvali", "tagaytay",
     "dasmarinas", "imus", "vermosa", "lemery", "tanay", "morong", "polangui",
     "calapan", "san andres", "sta cruz", "santa cruz", "tayabas", "lipa",
-    "bauan", "rosario", "noveleta", "silang", "sorsogon", "los banos",
+    "bauan", "rosario", "noveleta", "silang", "los banos",
 )
 VISAYAS = (
     "cebu", "bacolod", "iloilo", "negros", "panay", "leyte", "samar", "bohol",
@@ -87,7 +85,7 @@ def parse_coords(lat: object, lon: object) -> tuple[float, float] | None:
 
 def derive_region(text: str, lat: float | None, lon: float | None) -> str | None:
     """Best-effort region bucket from address text, falling back to coordinates."""
-    # fold accents so "Las Pinas" matches "Las Pinas"
+    # fold accents so the enye spelling of Las Pinas matches the plain one
     haystack = (
         unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
     )

@@ -176,7 +176,6 @@ button:focus-visible, select:focus-visible, input:focus-visible {
 }
 .row:hover { background: var(--surface-3); }
 .row[aria-expanded="true"] { background: var(--accent-soft); }
-.row.has-quality-flag .name::after { content: " •"; color: var(--accent); }
 .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .muted { color: var(--ink-3); font-size: 0.82rem; }
 
@@ -189,7 +188,6 @@ button:focus-visible, select:focus-visible, input:focus-visible {
 
 .detail { padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--surface-3); }
 .detail h3 { margin: 0 0 8px; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); }
-.quality-note { margin: 0 0 8px; color: var(--ink-2); font-size: 0.82rem; }
 .pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .pill { background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 0.82rem; }
 

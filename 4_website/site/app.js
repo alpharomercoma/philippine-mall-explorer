@@ -915,9 +915,28 @@ function wireHelp() {
   }
 }
 
+function renderExports() {
+  // The footer's download links resolve to this exact snapshot, so anyone
+  // processing the data downstream gets the same rows this page renders.
+  const date = state.data.date;
+  for (const span of document.querySelectorAll('.footer-date')) span.textContent = date;
+  const source = document.getElementById('exportData');
+  source.href = `${source.href.replace(/\/+$/, '')}/${date}`;
+  document.getElementById('exportBundle').href = document.body.dataset.bundle;
+}
+
 function renderQuality() {
+  const d = state.data;
+  const withheld = d.quality?.withheldProperties || 0;
+  // A property whose operator publishes no tenant list is left out rather than
+  // drawn as a pin with an empty popup. Saying how many were left out is the
+  // difference between a shorter count and a wrong one.
+  const gap = withheld
+    ? ` ${withheld} propert${withheld === 1 ? 'y is' : 'ies are'} not shown, because their operators publish no tenant list at all.`
+    : '';
   el('qualityText').textContent =
-    'Listings are source rows, not verified open businesses. Brands resolve spelling variants to one name using a curated list, so nothing merges by guesswork. Categories a brand carries anywhere are applied everywhere, because operators label the same store differently. Some operators publish incomplete or duplicated directories.';
+    'Listings are source rows, not verified open businesses. Brands resolve spelling variants to one name using a curated list, so nothing merges by guesswork. Categories a brand carries anywhere are applied everywhere, because operators label the same store differently. Some operators publish incomplete or duplicated directories.'
+    + gap;
 }
 
 function applyTheme(mode) {
@@ -995,6 +1014,7 @@ async function main() {
 
     state.data = prepare(await load());
     el('date').textContent = state.data.date;
+    renderExports();
     el('opcount').textContent = String(state.data.dict.chains.length);
     renderQuality();
     buildFacets();

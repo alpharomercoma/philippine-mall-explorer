@@ -146,7 +146,7 @@ robinsons,robinsons-iligan,Robinsons Place Iligan,mindanao,"Macapagal Ave, Iliga
 robinsons,robinsons-tagum,Robinsons Place Tagum,mindanao,"National Highway Tagum City, Davao City",,https://robinsonsmalls.com/mall-info/robinsons-place-tagum,mall,2026-07-26,7.429432,125.797513,osm,exact
 robinsons,robinsons-valencia,Robinsons Place Valencia,mindanao,"Sayre Highway, Brgy. Hagkol, Bagontaas Valencia, Bukidnon",,https://robinsonsmalls.com/mall-info/robinsons-place-valencia,mall,2026-07-26,7.928787,125.096366,nominatim,address
 robinsons,robinsons-angeles,Robinsons Angeles,north-luzon,"McArthur Highway, Balibago, Angeles City, Pampanga",,https://robinsonsmalls.com/mall-info/robinsons-angeles,mall,2026-07-26,15.157344,120.591578,osm,exact
-robinsons,robinsons-gapan,Robinsons Gapan,north-luzon,,,https://robinsonsmalls.com/mall-info/gapan,mall,2026-07-26,15.048633,120.698432,nominatim,exact
+robinsons,robinsons-gapan,Robinsons Gapan,north-luzon,,,https://robinsonsmalls.com/mall-info/gapan,mall,2026-07-26,15.300888,120.948554,nominatim,address
 robinsons,robinsons-luisita,Robinsons Luisita,north-luzon,"Mac Arthur Highway, Barangay San Miguel, Hacienda Luisita, Tarlac City",,https://robinsonsmalls.com/mall-info/robinsons-luisita,mall,2026-07-26,15.431262,120.599202,osm,exact
 robinsons,robinsons-ilocos,Robinsons Place Ilocos,north-luzon,"Barangay 1 San Francisco, San Nicholas, Ilocos Norte",,https://robinsonsmalls.com/mall-info/robinsons-place-ilocos,mall,2026-07-26,18.179972,120.592831,osm,exact
 robinsons,robinsons-la-union,Robinsons Place La Union,north-luzon,"MacArthur Highway, Brgy. Sevilla, San Fernando City, La Union",,https://robinsonsmalls.com/mall-info/la-union,mall,2026-07-26,16.600245,120.31908,osm,exact
@@ -191,7 +191,7 @@ starmall,talisay,Starmall Talisay Cebu,visayas,"Talisay City, Cebu",,https://sta
 waltermart,antipolo,WalterMart Antipolo,metro-manila,,,https://malls.waltermart.com.ph/malls/antipolo/,mall,2026-07-26,14.579451,121.17312,osm,exact
 waltermart,arayat,WalterMart Arayat,north-luzon,,,https://malls.waltermart.com.ph/malls/arayat/,mall,2026-07-26,15.144034,120.769057,nominatim,exact
 waltermart,bacoor,WalterMart Bacoor,south-luzon,,,https://malls.waltermart.com.ph/malls/bacoor/,mall,2026-07-26,14.414379,120.966186,osm,exact
-waltermart,balanga,WalterMart Balanga,north-luzon,,,https://malls.waltermart.com.ph/malls/balanga/,mall,2026-07-26,15.938523,120.581902,nominatim,address
+waltermart,balanga,WalterMart Balanga,north-luzon,,,https://malls.waltermart.com.ph/malls/balanga/,mall,2026-07-26,14.671472,120.523092,nominatim,exact
 waltermart,balayan,WalterMart Balayan,south-luzon,,,https://malls.waltermart.com.ph/malls/balayan/,mall,2026-07-26,13.949452,120.728725,nominatim,exact
 waltermart,baliwag,WalterMart Baliwag,north-luzon,,,https://malls.waltermart.com.ph/malls/baliwag/,mall,2026-07-26,14.966422,120.903646,nominatim,exact
 waltermart,batangas-city,WalterMart Batangas City,south-luzon,,,https://malls.waltermart.com.ph/malls/batangas-city/,mall,2026-07-26,13.763648,121.056216,nominatim,exact
@@ -262,7 +262,7 @@ ayala,ayala-metropoint,Metro Point Mall,metro-manila,"Metropoint Mall, EDSA Corn
 ayala,ayala-one-bonifacio-high-street,One Bonifacio High Street,metro-manila,"5th Ave. Corner 28th BGC, Taguig City Located along 5th Ave. beside PSE Building Near The Shangri-La at The Fort and The Mind Museum",35,https://www.ayalamalls.com/explore/mall-directory/ayala-one-bonifacio-high-street,mall,2026-07-26,14.551,121.0474,operator,exact
 ayala,ayala-pavilion,Pavilion Mall,south-luzon,"Ayala Pavilion Mall Bldg. A, Binan, Laguna",19,https://www.ayalamalls.com/explore/mall-directory/ayala-pavilion,mall,2026-07-26,14.32726,121.088187,osm,exact
 ayala,ayala-serendra,Shops at Serendra,metro-manila,"Serendra, 11th Ave., Bonifacio Global City, Taguig",16,https://www.ayalamalls.com/explore/mall-directory/ayala-serendra,mall,2026-07-26,14.5496,121.0535,operator,exact
-ayala,ayala-serin,Ayala Malls Serin,south-luzon,"Gen. Emilio Aguinaldo Highway Brgy. Silang Crossing East Tagaytay City, Cavite 4120",11,https://www.ayalamalls.com/explore/mall-directory/ayala-serin,mall,2026-07-26,14.112709,120.258804,operator,exact
+ayala,ayala-serin,Ayala Malls Serin,south-luzon,"Gen. Emilio Aguinaldo Highway Brgy. Silang Crossing East Tagaytay City, Cavite 4120",11,https://www.ayalamalls.com/explore/mall-directory/ayala-serin,mall,2026-07-26,14.112935,120.958891,osm,exact
 ayala,ayala-solenad,Ayala Malls Nuvali,south-luzon,"Nuvali, Brgy. Sto. Domingo, City of Santa Rosa, Laguna",29,https://www.ayalamalls.com/explore/mall-directory/ayala-solenad,mall,2026-07-26,14.2384,121.0563,operator,exact
 ayala,ayala-the-30th,Ayala Malls The 30th,metro-manila,30 Meralco Ave. Brgy. Ugong Pasig City 1604,31,https://www.ayalamalls.com/explore/mall-directory/ayala-the-30th,mall,2026-07-26,14.5807,121.0647,operator,exact
 ayala,ayala-the-district-dasmarinas,The District Dasmarinas,south-luzon,"Molino-Paliparan Road, Brgy. Salawag, Dasmarinas City, Cavite",23,https://www.ayalamalls.com/explore/mall-directory/ayala-the-district-dasmarinas,mall,2026-07-26,14.3601,120.9821,operator,exact
@@ -301,4 +301,4 @@ megaworld,venice-grand-canal-mall,Venice Grand Canal Mall,metro-manila,"Upper Mc
 ortigas,greenhills,Greenhills,metro-manila,"Ortigas Avenue, Greenhills, San Juan City",1,https://ortigasmalls.com/mall-directory?selectedMall=1,mall,2026-07-26,14.602246,121.048617,osm,exact
 ortigas,estancia,Estancia,metro-manila,"Capitol Commons, Meralco Ave., Pasig City",7,https://ortigasmalls.com/mall-directory?selectedMall=7,mall,2026-07-26,14.576246,121.063238,osm,exact
 ortigas,tiendesitas,Tiendesitas,metro-manila,"Frontera Verde, Ortigas Ave. cor. C-5, Pasig City",4,https://ortigasmalls.com/mall-directory?selectedMall=4,mall,2026-07-26,14.585939,121.078062,osm,exact
-ortigas,the-strip,The Strip,metro-manila,"Capitol Commons, Pasig City",10,https://ortigasmalls.com/mall-directory?selectedMall=10,mall,2026-07-26,14.601129,121.088168,osm,exact
+ortigas,the-strip,The Strip,metro-manila,"Capitol Commons, Pasig City",10,https://ortigasmalls.com/mall-directory?selectedMall=10,mall,2026-07-26,14.589251,121.069331,nominatim,exact

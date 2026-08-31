@@ -1,0 +1,123 @@
+# Monthly refresh: scrape every operator, rebuild the data and the site,
+# commit the new snapshot to main, and deploy to GitHub Pages.
+#
+# When it runs is the cron line below; GitHub has no way to feed a schedule
+# from a variable, so changing the cadence is a one-line edit here. The
+# workflow_dispatch trigger runs the same job on demand from the Actions tab.
+# GitHub disables cron on repos with no activity for 60 days; a monthly
+# snapshot commit is itself activity, so a green run keeps the schedule alive.
+#
+# Failure behavior, outermost to innermost:
+# - Each HTTP request retries 403/429/5xx with exponential backoff (8
+#   attempts, up to 300s) inside the scraper itself.
+# - The scrape step as a whole runs twice with a 10 minute pause. Responses
+#   are cached on disk for the life of the job, so the second attempt refetches
+#   only what failed, not the ~3,000 requests that succeeded.
+# - If any stage or check still fails, the job stops BEFORE the commit step:
+#   a bad month publishes nothing and the site keeps serving the last good
+#   snapshot. The failed run is visible (and emailed) via Actions.
+name: Monthly rescrape
+
+on:
+  schedule:
+    - cron: "0 22 1 * *" # 06:00 on the 2nd, Philippine time (UTC+8)
+  workflow_dispatch:
+    inputs:
+      accept_collapse:
+        description: >-
+          Chains whose listing collapse is real and should be accepted this
+          run (comma separated, or "all"). Leave empty normally.
+        required: false
+        default: ""
+
+permissions: {}
+
+concurrency:
+  group: rescrape
+  cancel-in-progress: false
+
+jobs:
+  rescrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    permissions:
+      contents: write
+    env:
+      # The input value is a workflow-author-controlled enum-ish string, but it
+      # still goes through env rather than inline interpolation on principle.
+      MALLSCAPE_ACCEPT_COLLAPSE: ${{ inputs.accept_collapse }}
+    steps:
+      # Always main, even when dispatched from another branch: this workflow
+      # commits data and deploys, and must never do that from an unmerged ref.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies and the end-to-end browser
+        run: |
+          uv sync --locked
+          uv run playwright install --with-deps chromium
+
+      - name: Scrape every operator
+        run: |
+          for attempt in 1 2; do
+            uv run mallscape scrape && break
+            if [ "$attempt" = 2 ]; then exit 1; fi
+            echo "scrape failed; retrying in 10 minutes against the cache"
+            sleep 600
+          done
+
+      - name: Geocode new properties and verify every pin
+        run: |
+          uv run mallscape geocode
+          uv run mallscape geocode --verify
+
+      - name: Clean, report, build the site
+        run: |
+          uv run mallscape clean
+          uv run mallscape report
+          uv run mallscape website
+
+      - name: Validate before publishing anything
+        run: |
+          uv run ruff check .
+          uv run pytest tests/test_unit.py tests/test_integration.py -q
+          uv run pytest tests/test_e2e.py -q
+
+      - name: Commit the new snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/snapshots 4_website/site 1_scrape/mallscape_scrape/registry
+          if git diff --cached --quiet; then
+            echo "nothing changed since the last snapshot; not committing"
+          else
+            git commit -m "snapshot $(date -u +%Y-%m-%d) via scheduled rescrape"
+            # main may have moved during a multi-hour scrape; replay on top
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: 4_website/site
+
+  # A separate job so a deploy failure is distinguishable from a data failure,
+  # and because deploy-pages wants the github-pages environment.
+  deploy:
+    needs: rescrape
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - id: deployment
+        uses: actions/deploy-pages@v4

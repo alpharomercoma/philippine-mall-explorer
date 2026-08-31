@@ -45,6 +45,14 @@ def classify_property_type(name: str, region: str | None) -> str:
     n = name.lower()
     if "sky ranch" in n or "amusement park" in n:
         return "amusement-park"
+    # Savemore and SM Hypermarket are grocery formats, not malls: a standalone
+    # supermarket with a handful of concessionaires along the front. Counting
+    # them as malls put five properties averaging 23 tenants into a chain whose
+    # malls carry a median of 160, and inflated the mall count the "malls only"
+    # comparison exists to get right. They surfaced as thin-mall warnings in
+    # the run report, which is what that section is for.
+    if "savemore" in n or "hypermarket" in n:
+        return "supermarket"
     if any(k in n for k in ("annex", "building", "bldg", "tower")):
         return "office-annex"
     if region == "smdc" or n.startswith("smdc"):

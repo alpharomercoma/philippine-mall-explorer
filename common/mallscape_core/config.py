@@ -79,7 +79,8 @@ MAX_PAGES: int = _int("MALLSCAPE_MAX_PAGES", 500, minimum=1)
 
 # --- website -----------------------------------------------------------------
 SITE_PORT: int = _int("MALLSCAPE_SITE_PORT", 3000, minimum=1)
-SITE_TITLE: str = _str("MALLSCAPE_SITE_TITLE", "Philippine Mall Explorer")
+# Identifies the project to the geocoding services below; the page's own links
+# are written in the site source, not injected from here.
 SITE_REPO_URL: str = _str(
     "MALLSCAPE_SITE_REPO_URL",
     "https://github.com/alpharomercoma/philippine-mall-explorer",
@@ -91,6 +92,11 @@ SITE_REPO_URL: str = _str(
 # are the terms we are using them under, so they are the defaults.
 OVERPASS_URL: str = _str("MALLSCAPE_OVERPASS_URL", "https://overpass-api.de/api/interpreter")
 NOMINATIM_URL: str = _str("MALLSCAPE_NOMINATIM_URL", "https://nominatim.openstreetmap.org/search")
+# The same service read the other way round: what is at this coordinate. Used
+# only by `mallscape geocode --verify`, which is how a pin in the sea is found.
+NOMINATIM_REVERSE_URL: str = _str(
+    "MALLSCAPE_NOMINATIM_REVERSE_URL", "https://nominatim.openstreetmap.org/reverse"
+)
 GEOCODE_RATE: float = _float("MALLSCAPE_GEOCODE_RATE", 1.0, minimum=0.05)
 GEOCODE_OVERPASS_TIMEOUT: float = _float("MALLSCAPE_GEOCODE_OVERPASS_TIMEOUT", 180.0, minimum=10.0)
 GEOCODER_USER_AGENT: str = _str(
@@ -110,22 +116,3 @@ TILE_ATTRIBUTION: str = _str("MALLSCAPE_TILE_ATTRIBUTION", "© OpenStreetMap con
 TILE_REFERRER_POLICY: str = _str(
     "MALLSCAPE_TILE_REFERRER_POLICY", "strict-origin-when-cross-origin"
 )
-
-
-def summary() -> dict[str, object]:
-    """Effective configuration, for logging and for the doctor command."""
-    return {
-        "DATA_DIR": str(DATA_DIR),
-        "SITE_DIR": str(SITE_DIR),
-        "REQUEST_RATE": REQUEST_RATE,
-        "REQUEST_TIMEOUT": REQUEST_TIMEOUT,
-        "RETRY_ATTEMPTS": RETRY_ATTEMPTS,
-        "RETRY_MAX_WAIT": RETRY_MAX_WAIT,
-        "MAX_PAGES": MAX_PAGES,
-        "SITE_PORT": SITE_PORT,
-        "SITE_TITLE": SITE_TITLE,
-        "OVERPASS_URL": OVERPASS_URL,
-        "NOMINATIM_URL": NOMINATIM_URL,
-        "GEOCODE_RATE": GEOCODE_RATE,
-        "TILE_URL": TILE_URL,
-    }

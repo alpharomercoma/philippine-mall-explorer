@@ -30,8 +30,17 @@ SCHEMA_VERSION = 4
 COORD_PRECISION = 5
 
 CHAIN_CAVEATS = {
-    "waltermart": "incomplete: source caps each category at 10 tenants",
     "ayala": "inflated: source contains duplicate merchant listings",
+}
+
+# Facts about one property that the source itself will not say. Kept here, not
+# scraped, because each one was established from outside evidence.
+PROPERTY_CAVEATS = {
+    ("starmall", "alabang"): (
+        "listing may be stale: the mall burned in January 2022 and is being "
+        "redeveloped as The Terminal, but the operator still publishes this "
+        "directory"
+    ),
 }
 
 
@@ -42,6 +51,17 @@ def build(run_date: str) -> tuple[str, dict]:
     if malls is None or stores is None:
         raise SystemExit(f"stages 1 and 2 must both have run for {run_date}")
     storage.validate_snapshot_frames(malls, stores)
+
+    # A property with no tenants has nothing to say in a brand explorer: it
+    # cannot match a search, cannot carry a brand, and on the map it is a pin
+    # whose popup is empty. Every one of them is a published gap in the
+    # operator's own directory, recorded with its evidence in
+    # registry/empty_directories.json and named in the run report, so leaving
+    # them out of the site loses nothing except a pin that answers no question.
+    listed = stores.groupby(["chain", "mall_id"]).size()
+    has_tenants = [bool(listed.get((r.chain, r.mall_id), 0)) for r in malls.itertuples()]
+    withheld = int(len(malls) - sum(has_tenants))
+    malls = malls[has_tenants].reset_index(drop=True)
 
     # --- shared dictionaries, sorted so the bundle is deterministic ---
     chains = sorted(malls["chain"].unique())
@@ -99,6 +119,8 @@ def build(run_date: str) -> tuple[str, dict]:
         flags = []
         if r.chain in CHAIN_CAVEATS:
             flags.append(CHAIN_CAVEATS[r.chain])
+        if (r.chain, r.mall_id) in PROPERTY_CAVEATS:
+            flags.append(PROPERTY_CAVEATS[(r.chain, r.mall_id)])
         if pd.isna(r.region):
             flags.append("region unavailable")
         mall_stores = stores[(stores["chain"] == r.chain) & (stores["mall_id"] == r.mall_id)]
@@ -202,6 +224,9 @@ def build(run_date: str) -> tuple[str, dict]:
         "quality": {
             "chainCaveats": CHAIN_CAVEATS,
             "propertyFlags": property_flags,
+            # Said out loud, because a count the page cannot explain is worse
+            # than a count that is short.
+            "withheldProperties": withheld,
         },
         # flat pairs: brandIdx, mallIdx, brandIdx, mallIdx, ...
         "edges": edges,

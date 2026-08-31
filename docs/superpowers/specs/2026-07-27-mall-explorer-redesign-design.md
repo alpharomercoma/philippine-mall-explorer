@@ -107,11 +107,11 @@ directly into regression tests. These cases are fixed as unit tests:
 
 | input | expected |
 |---|---|
-| `CEBUANA LHUILLIER` | `[cebuana lhuillier]` — one brand, not two |
-| `RCBC ATM` | `[rcbc atm]` — ATM stays distinct from the bank |
+| `CEBUANA LHUILLIER` | `[cebuana lhuillier]` - one brand, not two |
+| `RCBC ATM` | `[rcbc atm]` - ATM stays distinct from the bank |
 | `SAMSUNG MOBILE CAPTAINS BURGER` | `[samsung]` |
 | `JOLLIBEE MINI GEM EXHIBIT (29)` | `[jollibee]` |
-| `BUGS BUNNY BARBER SHOP` | `[]` — no generic-word false positive |
+| `BUGS BUNNY BARBER SHOP` | `[]` - no generic-word false positive |
 
 ### P3. Brand resolution (stage 2)
 
@@ -119,10 +119,11 @@ New module `2_clean/mallscape_clean/brands.py` adding `brand_canonical`
 alongside `brand_key`.
 
 A committed `registry/brand_aliases.json` holds explicit equivalences
-(`starbucks coffee -> starbucks`). Automatic near-match detection only
-*proposes* candidates into `normalization_review.csv`; nothing merges unless it
-is written down. This preserves the deliberate BPI / BPI ATM separation: an
-allow-list cannot merge two entities by accident.
+(`starbucks coffee -> starbucks`). Nothing merges unless it is written down;
+`normalization_review.csv` lists each key's raw variants so a human can grow
+the alias list from evidence. (An automatic near-match proposer was designed
+here and later removed unused.) This preserves the deliberate BPI / BPI ATM
+separation: an allow-list cannot merge two entities by accident.
 
 ### P4. Category propagation (stage 2)
 
@@ -168,7 +169,7 @@ map on those malls.
 When a query matches no property but does match a brand, the empty state says
 so instead of showing an empty map:
 
-> No property is named "uniqlo". **Uniqlo** is a brand in 64 malls — show them.
+> No property is named "uniqlo". **Uniqlo** is a brand in 64 malls - show them.
 
 ### S4. Tiles and caveats
 
