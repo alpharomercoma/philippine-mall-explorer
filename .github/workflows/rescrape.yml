@@ -53,6 +53,12 @@ jobs:
       # The input value is a workflow-author-controlled enum-ish string, but it
       # still goes through env rather than inline interpolation on principle.
       MALLSCAPE_ACCEPT_COLLAPSE: ${{ inputs.accept_collapse }}
+      # A tighter retry budget than the local default (8 attempts, 300s max).
+      # From this runner a 403 is usually the WAFs that block cloud IP ranges
+      # outright, where fifteen minutes of backoff per request buys nothing
+      # and four blocked chains would eat the whole job timeout.
+      MALLSCAPE_RETRY_ATTEMPTS: 4
+      MALLSCAPE_RETRY_MAX_WAIT: 60
     steps:
       # Always main, even when dispatched from another branch: this workflow
       # commits data and deploys, and must never do that from an unmerged ref.
