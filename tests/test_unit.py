@@ -1446,3 +1446,35 @@ class TestFetcherRetries:
         fetcher.client.get = flaky
         assert self._request(fetcher) == "{}"
         assert len(calls) == 2
+
+
+class TestProxyRedaction:
+    def test_the_proxy_credentials_never_reach_the_report(self, monkeypatch):
+        """The run report is committed to a public repository."""
+        from mallscape_core import config
+        from mallscape_scrape.fetch import redact
+
+        monkeypatch.setattr(config, "PROXY_URL", "http://user-rotate:s3%2Fcret@p.example:80")
+        out = redact(
+            "ProxyError: HTTP://user-rotate:s3%2Fcret@p.example:80 refused; "
+            "https://other:pw@host/ too; bare s3/cret and s3%2Fcret"
+        )
+        for secret in ("s3/cret", "s3%2Fcret", "user-rotate", "other:pw"):
+            assert secret not in out, out
+
+    def test_a_raw_at_sign_in_the_password_is_not_split(self, monkeypatch):
+        from mallscape_core import config
+        from mallscape_scrape.fetch import redact
+
+        monkeypatch.setattr(config, "PROXY_URL", "http://u:p%40ss@p.example:80")
+        out = redact("tunnel to http://u:p@ss@p.example:80 failed (p@ss, p%40ss)")
+        assert "p@ss" not in out and "p%40ss" not in out and "ss@" not in out, out
+        assert "p.example:80" in out
+
+    def test_without_a_proxy_text_is_untouched(self, monkeypatch):
+        from mallscape_core import config
+        from mallscape_scrape.fetch import redact
+
+        monkeypatch.setattr(config, "PROXY_URL", "")
+        text = "HTTPError: 403 for https://www.smsupermalls.com/tenants?page=2"
+        assert redact(text) == text
