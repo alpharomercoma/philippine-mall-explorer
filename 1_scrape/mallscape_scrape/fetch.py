@@ -33,6 +33,33 @@ from mallscape_core import config
 USER_AGENT = config.USER_AGENT
 
 
+# Greedy to the last @ before the host, as a URL parser splits it, so a
+# password holding a raw @ is not cut in half.
+_USERINFO = re.compile(r"(\b[a-z][a-z0-9+.-]*://)[^\s/]*@", re.I)
+
+
+def redact(text: str) -> str:
+    """Strip proxy credentials from text bound for logs or the run report.
+
+    The run report is committed to a public repository, and a curl error raised
+    while tunnelling can quote the proxy URL. The configured username and
+    password go first, in raw, decoded and encoded forms, so they cannot
+    survive on their own; then any remaining ``scheme://userinfo@`` is cut to
+    ``scheme://***@``.
+    """
+    if config.PROXY_URL:
+        parts = urllib.parse.urlsplit(config.PROXY_URL)
+        forms = set()
+        for secret in (parts.password, parts.username):
+            if secret:
+                plain = urllib.parse.unquote(secret)
+                forms |= {secret, plain, urllib.parse.quote(plain, safe="")}
+        # longest first, so a username inside the password cannot shield it
+        for form in sorted(forms, key=len, reverse=True):
+            text = text.replace(form, "***")
+    return _USERINFO.sub(r"\1***@", text)
+
+
 class FetchError(Exception):
     pass
 

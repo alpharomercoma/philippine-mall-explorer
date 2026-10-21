@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import ClassVar
 
 from mallscape_core.models import Mall, Store
-from mallscape_scrape.fetch import Fetcher
+from mallscape_scrape.fetch import Fetcher, redact
 
 
 class MallChainScraper(ABC):
@@ -24,6 +24,7 @@ class MallChainScraper(ABC):
         self.confirmed_empty: list[str] = []
 
     def warn(self, msg: str) -> None:
+        msg = redact(msg)  # warnings go into the committed run report
         self.warnings.append(msg)
         print(f"  [warn:{self.chain}] {msg}")
 

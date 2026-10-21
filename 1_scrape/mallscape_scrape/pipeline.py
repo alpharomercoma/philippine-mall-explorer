@@ -14,7 +14,7 @@ import pandas as pd
 from mallscape_core import config, storage
 from mallscape_core.geo import region_for
 from mallscape_scrape import geocode, validate
-from mallscape_scrape.fetch import Fetcher
+from mallscape_scrape.fetch import Fetcher, redact
 from mallscape_scrape.registry_of_scrapers import SCRAPERS
 
 
@@ -52,11 +52,12 @@ def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd
             # cloud address ranges wholesale) must not cost the other nine
             # their month. The chain contributes nothing here, which the
             # collapse reconciliation below turns into last month's rows.
+            reason = redact(f"{type(exc).__name__}: {exc}")
             warnings.append(
-                f"[{name}] scrape failed entirely ({type(exc).__name__}: {exc}); "
+                f"[{name}] scrape failed entirely ({reason}); "
                 "expecting the previous snapshot's rows to be carried forward"
             )
-            print(f"[{name}] FAILED: {type(exc).__name__}: {exc}")
+            print(f"[{name}] FAILED: {reason}")
             continue
         finally:
             fetcher.close()
