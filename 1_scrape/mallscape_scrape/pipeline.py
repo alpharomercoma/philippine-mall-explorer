@@ -39,7 +39,11 @@ def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd
     succeeded = 0
     for name in chains:
         cls = SCRAPERS[name]
-        fetcher = Fetcher(storage.cache_dir(run_date, name), rate=rate, headers=cls.extra_headers)
+        # Only the chains that refuse this runner's IP pay for proxy traffic.
+        proxy = config.PROXY_URL if name in config.PROXY_CHAINS else None
+        fetcher = Fetcher(
+            storage.cache_dir(run_date, name), rate=rate, headers=cls.extra_headers, proxy=proxy
+        )
         scraper = cls(fetcher)
         try:
             malls, stores = scraper.scrape_all()

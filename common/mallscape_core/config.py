@@ -72,6 +72,19 @@ USER_AGENT: str = _str(
     "(KHTML, like Gecko) Chrome/126.0 Safari/537.36 mallscape-research/1.0",
 )
 
+# Browser whose TLS handshake requests present (any curl_cffi impersonate
+# target). Cloudflare challenges a plain Python handshake from cloud ranges.
+IMPERSONATE: str = _str("MALLSCAPE_IMPERSONATE", "chrome")
+# A rotating proxy endpoint, http://user:password@host:port, that gives each
+# request a new exit IP. It holds credentials, so it is a CI secret, never
+# committed. Empty means every request goes direct.
+PROXY_URL: str = _str("MALLSCAPE_PROXY_URL", "")
+# Only these chains go through it; the rest answer runners directly, and
+# residential proxy traffic is billed by the gigabyte.
+PROXY_CHAINS: frozenset[str] = frozenset(
+    c.strip() for c in _str("MALLSCAPE_PROXY_CHAINS", "sm").split(",") if c.strip()
+)
+
 # --- pagination guards -------------------------------------------------------
 # Upper bounds only. They exist to turn a runaway loop into a loud failure
 # rather than an infinite one, and are far above any real directory size.

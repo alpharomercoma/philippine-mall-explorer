@@ -2,6 +2,11 @@
 
 Every response body is cached under the run's raw-data directory, so parser
 iterations (and validation re-runs on the same day) never re-hit the sites.
+
+Requests go out through curl_cffi with a browser TLS fingerprint rather than a
+plain Python client. Cloudflare's bot check (WalterMart, Araneta) challenges
+the Python handshake from cloud address ranges whatever the headers say, and
+passes the browser one; verified from a GitHub runner 2026-10-13.
 """
 
 from __future__ import annotations
@@ -14,7 +19,8 @@ import time
 import urllib.parse
 from pathlib import Path
 
-import httpx
+from curl_cffi import requests as curl
+from curl_cffi.requests.exceptions import HTTPError, RequestException
 from tenacity import (
     retry,
     retry_if_exception,
@@ -32,13 +38,12 @@ class FetchError(Exception):
 
 
 def _retryable(exc: BaseException) -> bool:
-    if isinstance(exc, httpx.TransportError):
-        return True
-    if isinstance(exc, httpx.HTTPStatusError):
+    if isinstance(exc, HTTPError) and exc.response is not None:
         # 403: SM's WAF rate-limits sustained clients; blocks lift after a
         # cooldown, so back off hard and retry rather than dying mid-run
         return exc.response.status_code in (403, 429, 500, 502, 503, 504)
-    return False
+    # no response at all: connection, timeout, proxy or TLS failure
+    return isinstance(exc, RequestException) and exc.response is None
 
 
 class Fetcher:
@@ -48,6 +53,7 @@ class Fetcher:
         rate: float | None = None,
         timeout: float | None = None,
         headers: dict[str, str] | None = None,
+        proxy: str | None = None,
     ):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -57,7 +63,8 @@ class Fetcher:
             raise ValueError(f"rate must be positive, got {rate}")
         self.min_interval = 1.0 / rate
         self._last_request = 0.0
-        self.client = httpx.Client(
+        self.client = curl.Session(
+            impersonate=config.IMPERSONATE,
             headers={
                 "User-Agent": USER_AGENT,
                 "X-Requested-With": "XMLHttpRequest",
@@ -65,8 +72,11 @@ class Fetcher:
                 **(headers or {}),
             },
             timeout=timeout,
-            follow_redirects=True,
+            allow_redirects=True,
         )
+        # Meant for a rotating endpoint: every request leaves from a new IP, so
+        # a 403 from one the WAF dislikes is retried from another.
+        self.proxy = proxy
         self.requests_made = 0
         self.cache_hits = 0
         self._bypass = False
@@ -108,7 +118,7 @@ class Fetcher:
     )
     def _request(self, url: str, params: dict | None) -> str:
         self._throttle()
-        resp = self.client.get(url, params=params)
+        resp = self.client.get(url, params=params, proxy=self.proxy)
         resp.raise_for_status()
         self.requests_made += 1
         return resp.text

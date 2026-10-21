@@ -179,19 +179,20 @@ month and reprocess it.
 
 ### Where the scrape runs matters
 
-SM, WalterMart and Araneta refuse GitHub's runner IP ranges outright (403
-on the first request, with any User-Agent; verified by a live run
-2026-08-31). On GitHub-hosted runners the monthly job therefore refreshes
-the other seven operators and carries those three forward from the previous
-snapshot, with their true `fetched` dates in the report. Two ways to refresh
-everything:
+Two operators wall off GitHub's runner IP ranges (verified live 2026-10-13):
 
-- Run `make scrape` from an ordinary residential connection and push; the
-  deploy workflow takes it from there.
-- Register a self-hosted runner on such a machine and give the rescrape job
-  `runs-on: [self-hosted]`. This repository is public, so first require
-  approval for all outside collaborators' fork workflows (Settings, Actions,
-  General) before attaching any self-hosted runner.
+- WalterMart and Araneta sit behind Cloudflare, which challenges a plain
+  Python client from cloud ranges. The fetcher presents a browser TLS
+  fingerprint through curl_cffi, which passes.
+- SM's AWS WAF refuses the runner range whatever the client, including a real
+  Chrome. In CI, SM goes out through the rotating residential proxy in the
+  `WEBSHARE_PROXY_URL` secret, which gives every request a new exit IP. SM
+  accepts nearly all of them (19 of 20 in a live test); a 403 is retried and
+  leaves from another. With no secret, or the proxy down, SM is carried
+  forward from the previous snapshot as before.
+
+Locally none of this is needed: from a residential connection every operator
+answers directly, and with `MALLSCAPE_PROXY_URL` unset no proxy is used.
 
 ## Configuration
 
