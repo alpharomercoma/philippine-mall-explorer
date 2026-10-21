@@ -1,0 +1,298 @@
+chain,mall_id,n_stores,n_brands,top_categories,mall_name,region,n_unique_brands
+ortigas,greenhills,919,665,"shop (537), dining (230), bank (15)",Greenhills,metro-manila,315
+sm,sm-city-north-edsa,868,820,"dining (272), shopping (218), cyberzone (156)",SM City North Edsa,metro-manila,133
+filinvest,festival-mall,784,737,"dining (122), health, beauty and wellness (101), dining / food (kiosk / carts) (93)",Festival Mall,metro-manila,265
+sm,sm-city-fairview,739,703,"dining (224), shopping (183), cyberzone (120)",SM City Fairview,metro-manila,79
+sm,sm-megamall,692,669,"shopping (224), dining (187), cyberzone (102)",SM Megamall,metro-manila,105
+sm,sm-mall-of-asia,686,679,"dining (209), shopping (203), cyberzone (114)",SM Mall of Asia,metro-manila,91
+robinsons,robinsons-manila,671,589,,Robinsons Place Manila,metro-manila,136
+sm,sm-city-santa-rosa,537,403,"dining (146), shopping (103), undefined (100)",SM City Santa Rosa,south-luzon,33
+sm,sm-city-pampanga,515,475,"dining (187), shopping (123), cyberzone (84)",SM City Pampanga,north-luzon,55
+ayala,ayala-market-market,501,442,"shop (251), dine (150), services (52)",Market! Market!,metro-manila,119
+sm,sm-city-cebu,497,480,"shopping (143), dining (135), cyberzone (92)",SM City Cebu,visayas,59
+sm,sm-city-clark,434,431,"dining (161), shopping (110), cyberzone (71)",SM City Clark,north-luzon,49
+robinsons,robinsons-magnolia,425,416,,Robinsons Magnolia,metro-manila,98
+ayala,ayala-center-cebu,423,391,"shop (219), dine (120), services (42)",Ayala Center Cebu,visayas,61
+ayala,ayala-glorietta,416,389,"shop (255), dine (89), services (39)",Glorietta,metro-manila,51
+robinsons,robinsons-galleria-ortigas,398,388,,Robinsons Galleria,metro-manila,92
+ayala,ayala-trinoma,397,370,"shop (220), dine (108), services (32)",Trinoma,metro-manila,29
+sm,sm-seaside-city-cebu,377,374,"shopping (117), dining (116), cyberzone (42)",SM Seaside City Cebu,visayas,44
+ayala,ayala-manila-bay,371,351,"shop (189), dine (110), services (36)",Ayala Malls Manila Bay,metro-manila,33
+sm,sm-city-davao,361,356,"dining (104), shopping (103), cyberzone (61)",SM City Davao,mindanao,54
+sm,sm-city-dasmarinas,361,354,"dining (116), shopping (101), cyberzone (53)",SM City Dasmariñas,south-luzon,20
+sm,sm-city-baguio,354,349,"dining (136), shopping (101), cyberzone (45)",SM City Baguio,north-luzon,47
+sm,sm-city-iloilo,352,342,"shopping (106), dining (104), cyberzone (59)",SM City Iloilo,visayas,50
+sm,sm-southmall,345,342,"dining (109), shopping (94), cyberzone (49)",SM Southmall,metro-manila,21
+sm,sm-city-bacolod,330,319,"shopping (106), dining (98), cyberzone (59)",SM City Bacolod,visayas,47
+sm,sm-city-manila,314,311,"dining (107), shopping (68), cyberzone (48)",SM City Manila,metro-manila,21
+ayala,ayala-abreeza,309,285,"shop (168), dine (67), services (38)",Abreeza,mindanao,42
+robinsons,robinsons-antipolo,307,288,,Robinsons Place Antipolo,metro-manila,53
+ortigas,estancia,306,248,"shop (136), dining (114), bank (5)",Estancia,metro-manila,86
+megaworld,venice-grand-canal-mall,305,286,"dine (121), shop (92), services (90)",Venice Grand Canal Mall,metro-manila,76
+sm,sm-city-sucat,298,298,"dining (109), shopping (54), cyberzone (52)",SM City Sucat,metro-manila,19
+sm,sm-city-bicutan,290,287,"dining (124), shopping (47), cyberzone (45)",SM City Bicutan,metro-manila,12
+sm,sm-city-san-lazaro,290,290,"dining (104), shopping (75), cyberzone (49)",SM City San Lazaro,metro-manila,11
+sm,sm-city-bacoor,276,275,"dining (94), shopping (59), cyberzone (58)",SM City Bacoor,south-luzon,7
+ayala,ayala-capitol-central,272,196,"shop (122), dine (93), services (28)",Ayala Malls Capitol Central,visayas,42
+sm,sm-city-lipa,262,262,"dining (95), shopping (77), cyberzone (43)",SM City Lipa,south-luzon,12
+sm,sm-city-cabanatuan,259,259,"dining (74), shopping (64), cyberzone (62)",SM City Cabanatuan,north-luzon,16
+robinsons,robinsons-dumaguete,259,226,,Robinsons Place Dumaguete,visayas,59
+sm,sm-lanang,257,254,"dining (79), shopping (70), cyberzone (45)",SM Lanang,mindanao,36
+ayala,ayala-marquee,254,242,"shop (128), dine (73), services (32)",MarQuee Mall,north-luzon,30
+ayala,ayala-up-town-center,253,220,"shop (108), dine (89), services (28)",U. P. Town Center,metro-manila,15
+megaworld,uptown-mall,248,247,"shop (117), dine (92), services (39)",Uptown Mall,metro-manila,42
+robinsons,robinsons-tacloban,248,229,,Robinsons Place Tacloban,visayas,73
+robinsons,robinsons-novaliches,243,219,,Robinsons Novaliches,metro-manila,110
+sm,sm-city-marilao,242,240,"dining (86), shopping (55), cyberzone (52)",SM City Marilao,north-luzon,15
+ayala,ayala-feliz,239,233,"shop (96), dine (89), services (30)",Ayala Malls Feliz,metro-manila,18
+sm,sm-city-batangas,236,236,"dining (79), shopping (63), cyberzone (46)",SM City Batangas,south-luzon,12
+ayala,ayala-greenbelt,233,221,"shop (158), dine (54), services (11)",Greenbelt,metro-manila,80
+robinsons,robinsons-malolos,233,222,,Robinsons Place Malolos,north-luzon,44
+robinsons,robinsons-ilocos,233,222,,Robinsons Place Ilocos,north-luzon,62
+robinsons,galleria-south,232,210,,Robinsons Galleria South,south-luzon,41
+sm,sm-cdo-downtown,229,229,"dining (71), shopping (58), cyberzone (32)",SM CDO Downtown Premier,mindanao,37
+sm,sm-city-calamba,228,226,"dining (75), cyberzone (55), shopping (48)",SM City Calamba,south-luzon,9
+sm,sm-city-baliwag,228,228,"dining (91), cyberzone (48), shopping (44)",SM City Baliwag,north-luzon,13
+sm,sm-city-grand-central,226,226,"dining (91), shopping (46), cyberzone (42)",SM City Grand Central,metro-manila,6
+robinsons,robinsons-iligan,225,213,,Robinsons Place Iligan,mindanao,68
+robinsons,robinsons-galleria-cebu,222,203,,Robinsons Galleria Cebu,visayas,69
+sm,sm-city-lucena,220,220,"dining (59), shopping (58), cyberzone (52)",SM City Lucena,south-luzon,24
+ayala,ayala-centrio,218,213,"shop (128), dine (51), services (22)",Centrio Mall,mindanao,30
+ayala,ayala-solenad,215,193,"shop (87), dine (75), essentials (29)",Ayala Malls Nuvali,south-luzon,34
+robinsons,robinsons-dasmarinas,209,189,,Robinsons Place Dasmarinas,south-luzon,62
+sm,sm-city-legazpi,207,200,"dining (72), shopping (49), cyberzone (37)",SM City Legazpi,south-luzon,16
+robinsons,robinsons-metro-east,206,196,,Robinsons Metro East,metro-manila,70
+robinsons,robinsons-imus,205,172,,Robinsons Place Imus,south-luzon,48
+robinsons,robinsons-santiago,199,195,,Robinsons Place Santiago,north-luzon,52
+robinsons,robinsons-tuguegarao,199,192,,Robinsons Place Tuguegarao,north-luzon,50
+sm,sm-city-la-union,199,199,"undefined (107), dining (82), shopping (4)",SM City La Union,north-luzon,30
+fishermall,quezonave,195,189,,Fisher Mall Quezon Avenue,metro-manila,59
+sm,sm-aura,195,194,"shopping (76), dining (51), wellness (18)",SM Aura,metro-manila,24
+megaworld,lucky-chinatown-mall,194,194,"shop (90), dine (69), services (34)",Lucky Chinatown Mall,metro-manila,32
+ayala,ayala-circuit,193,160,"dine (72), shop (56), services (30)",Ayala Malls Circuit,metro-manila,24
+robinsons,robinsons-palawan,193,167,,Robinsons Place Palawan,south-luzon,66
+sm,sm-city-sta-mesa,191,191,"dining (71), cyberzone (44), shopping (30)",SM City Sta. Mesa,metro-manila,12
+robinsons,robinsons-iloilo,189,173,,Robinsons Place Iloilo,visayas,51
+sm,sm-city-general-santos,188,184,"dining (63), shopping (49), cyberzone (41)",SM City General Santos,mindanao,28
+sm,sm-city-tanza,187,187,"dining (69), cyberzone (34), shopping (33)",SM City Tanza,south-luzon,6
+sm,sm-city-tuguegarao,187,187,"dining (64), shopping (37), cyberzone (35)",SM City Tuguegarao,north-luzon,22
+megaworld,eastwood-mall,184,178,"shop (91), dine (54), services (39)",Eastwood Mall,metro-manila,27
+ayala,ayala-fairview-mall,183,170,"dine (67), shop (65), essentials (31)",Fairview Terraces,metro-manila,14
+robinsons,robinsons-lipa,182,168,,Robinsons Place Lipa,south-luzon,46
+sm,sm-city-marikina,180,179,"dining (63), shopping (32), cyberzone (27)",SM City Marikina,metro-manila,3
+sm,sm-city-olongapo-central,180,179,"dining (69), shopping (36), cyberzone (30)",SM City Olongapo Central,north-luzon,10
+sm,sm-city-molino,179,175,"dining (55), cyberzone (44), shopping (32)",SM City Molino,south-luzon,6
+robinsons,robinsons-naga,174,166,,Robinsons Place Naga,south-luzon,45
+sm,sm-city-urdaneta-central,172,172,"dining (55), cyberzone (42), shopping (35)",SM City Urdaneta Central,north-luzon,17
+sm,sm-city-naga,172,172,"dining (67), shopping (44), cyberzone (32)",SM City Naga,south-luzon,19
+sm,sm-city-trece-martires,172,172,"dining (63), cyberzone (42), shopping (28)",SM City Trece Martires,south-luzon,15
+robinsons,robinsons-gentrias,171,159,,Robinsons Place Gen. Trias,south-luzon,29
+sm,sm-city-rosales,171,170,"dining (56), cyberzone (42), shopping (41)",SM City Rosales,north-luzon,10
+ayala,ayala-malls-central-bloc,168,163,"shop (71), dine (55), services (21)",Ayala Malls Central Bloc,visayas,21
+ayala,one-ayala-mall,167,160,"shop (76), dine (69), essentials (13)",One Ayala,metro-manila,9
+sm,sm-city-san-pablo,166,166,"dining (49), shopping (43), cyberzone (42)",SM City San Pablo,south-luzon,5
+sm,sm-city-san-jose-del-monte,163,163,"dining (54), cyberzone (39), shopping (30)",SM City San Jose Del Monte,north-luzon,7
+sm,the-podium,161,160,"dining (52), shopping (41), wellness (29)",The Podium,metro-manila,47
+sm,sm-city-taytay,161,160,"dining (56), cyberzone (32), shopping (31)",SM City Taytay,metro-manila,6
+sm,sm-city-consolacion,160,159,"dining (54), cyberzone (33), shopping (24)",SM City Consolacion,visayas,24
+sm,sm-city-caloocan,160,152,"dining (53), cyberzone (29), shopping (28)",SM City Caloocan,metro-manila,7
+robinsons,robinsons-gapan,159,149,,Robinsons Gapan,north-luzon,38
+sm,sm-city-novaliches,158,154,"dining (48), cyberzone (36), shopping (24)",SM City Novaliches,metro-manila,16
+sm,sm-city-cauayan,157,154,"dining (51), shopping (37), cyberzone (33)",SM City Cauayan,north-luzon,15
+sm,sm-city-sorsogon,156,151,"dining (61), shopping (29), cyberzone (21)",SM City Sorsogon,south-luzon,18
+megaworld,festive-walk-mall-iloilo,155,153,"shop (66), dine (50), services (39)",Festive Walk Mall,visayas,40
+sm,sm-city-butuan,152,151,"dining (52), shopping (43), cyberzone (28)",SM City Butuan,mindanao,27
+ayala,ayala-vertis,152,141,"shop (60), dine (59), services (15)",Ayala Malls Vertis North,metro-manila,15
+sm,sm-city-tarlac,152,150,"dining (50), shopping (35), cyberzone (35)",SM City Tarlac,north-luzon,7
+megaworld,newport-city,150,141,"shop (57), dine (51), services (42)",Newport City,metro-manila,40
+robinsons,robinsons-starmills,149,146,,Robinsons Starmills,north-luzon,53
+robinsons,robinsons-pagadian,149,145,,Robinsons Pagadian,mindanao,49
+fishermall,malabon,147,147,,Fisher Mall Malabon,metro-manila,32
+sm,sm-city-valenzuela,146,146,"dining (51), cyberzone (30), shopping (29)",SM City Valenzuela,metro-manila,3
+sm,sm-city-masinag,145,145,"dining (46), cyberzone (30), shopping (26)",SM City Masinag,metro-manila,11
+sm,sm-city-san-mateo,145,145,"dining (47), cyberzone (39), shopping (22)",SM City San Mateo,metro-manila,7
+sm,sm-city-bataan,145,145,"dining (60), shopping (32), cyberzone (24)",SM City Bataan,north-luzon,7
+robinsons,robinsons-valencia,144,138,,Robinsons Place Valencia,mindanao,42
+sm,sm-city-sto-tomas,144,144,"dining (49), cyberzone (34), shopping (29)",SM City Sto. Tomas,south-luzon,6
+sm,sm-city-laoag,144,144,"dining (50), cyberzone (34), shopping (26)",SM City Laoag,north-luzon,14
+robinsons,robinsons-pangasinan,143,142,,Robinsons Place Pangasinan,north-luzon,33
+megaworld,southwoods-mall,142,142,"shop (53), services (46), dine (43)",Southwoods Mall,south-luzon,37
+robinsons,robinsons-butuan,142,136,,Robinsons Place Butuan,mindanao,39
+sm,sm-city-cagayan-de-oro,140,140,"dining (44), cyberzone (27), shopping (25)",SM City CDO Uptown,mindanao,38
+sm,sm-city-east-ortigas,139,138,"dining (53), shopping (35), wellness (17)",SM City East Ortigas,metro-manila,5
+sm,sm-city-puerto-princesa,137,137,"shopping (40), cyberzone (40), dining (32)",SM City Puerto Princesa,south-luzon,19
+sm,sm-center-lemery,132,122,"shopping (34), cyberzone (31), dining (29)",SM Center Lemery,south-luzon,7
+sm,sm-city-mindpro,128,128,"shopping (41), dining (39), cyberzone (26)",SM City Mindpro,mindanao,25
+sm,sm-city-telabastagan,127,127,"dining (52), shopping (29), cyberzone (18)",SM City Telabastagan,north-luzon,3
+robinsons,robinsons-la-union,127,120,,Robinsons Place La Union,north-luzon,30
+ayala,ayala-cloverleaf,126,120,"dine (63), shop (29), essentials (16)",Ayala Malls Cloverleaf,metro-manila,7
+robinsons,opus,124,123,,Opus Mall,metro-manila,63
+robinsons,robinsons-ormoc,124,119,,Robinsons Place Ormoc,visayas,72
+sm,sm-city-roxas,122,122,"dining (35), shopping (31), cyberzone (18)",SM City Roxas,visayas,14
+ayala,ayala-harbor-point,118,113,"shop (70), dine (29), essentials (12)",Harbor Point,north-luzon,12
+waltermart,north-edsa,117,117,"food choices (66), shops (21), cybermart (13)",WalterMart North EDSA,metro-manila,9
+sm,sm-city-daet,114,113,"dining (41), shopping (27), cyberzone (22)",SM City Daet,south-luzon,11
+sm,sm-center-dagupan,114,114,"dining (39), cyberzone (29), shopping (23)",SM Center Dagupan,north-luzon,7
+robinsons,robinsons-north-tacloban,113,110,,Robinsons North Tacloban,visayas,32
+sm,sm-city-rosario,113,113,"dining (38), cyberzone (24), shopping (24)",SM City Rosario,south-luzon,8
+robinsons,robinsons-cybergate-cebu,112,91,,Robinsons Cybergate Cebu,visayas,50
+robinsons,robinsons-las-pinas,111,110,,Robinsons Place Las Pinas,metro-manila,31
+robinsons,robinsons-tagum,111,108,,Robinsons Place Tagum,mindanao,39
+robinsons,robinsons-jaro,111,109,,Robinsons Place Jaro,visayas,24
+sm,sm-city-bf-paranaque,110,110,"dining (32), cyberzone (28), shopping (21)",SM City BF Parañaque,metro-manila,5
+sm,sm-jmall,108,108,"cyberzone (32), dining (29), shopping (25)",SM J Mall,visayas,19
+starmall,alabang,107,107,"shopping (39), services (33), dining (30)",Starmall Alabang,metro-manila,34
+sm,sm-center-pulilan,107,106,"shopping (25), dining (20), cyberzone (16)",SM Center Pulilan,north-luzon,17
+ayala,ayala-serin,106,100,"shop (42), dine (38), essentials (14)",Ayala Malls Serin,south-luzon,9
+waltermart,makati,105,104,"food choices (51), shops (24), services (11)",WalterMart Makati,metro-manila,14
+robinsons,robinsons-pavia,104,94,,Robinsons Place Pavia,visayas,19
+robinsons,robinsons-roxas,104,101,,Robinsons Place Roxas,visayas,32
+robinsons,robinsons-bacolod,103,100,,Robinsons Place Bacolod,visayas,31
+sm,sm-center-angono,102,102,"dining (32), shopping (24), cyberzone (19)",SM Center Angono,metro-manila,4
+araneta,farmers-plaza,102,101,,Farmers Plaza,metro-manila,49
+ayala,ayala-the-30th,101,99,"dine (45), shop (23), services (19)",Ayala Malls The 30th,metro-manila,8
+sm,sm-center-ormoc,101,101,"dining (28), shopping (27), cyberzone (12)",SM Center Ormoc,visayas,14
+sm,sm-center-tuguegarao-downtown,100,99,"shopping (25), dining (25), cyberzone (17)",SM Center Tuguegarao Downtown,north-luzon,10
+sm,sm-center-las-pinas,100,100,"dining (36), cyberzone (18), hobbies-and-specialty (15)",SM Center Las Piñas,metro-manila,6
+sm,s-maison,99,91,"dining (39), shopping (20), wellness (11)",S Maison,metro-manila,42
+robinsons,robinsons-sta-rosa,98,94,,Robinsons Sta. Rosa,south-luzon,38
+starmall,san-jose-del-monte,98,98,"shopping (36), dining (32), services (25)",Starmall San Jose del Monte,north-luzon,28
+robinsons,robinsons-antique,92,90,,Robinsons Place Antique,visayas,18
+megaworld,eastwood-city-walk,91,89,"dine (50), services (25), shop (15)",Eastwood City Walk,metro-manila,33
+sm,sm-center-pasig,91,91,"dining (43), wellness (17), hobbies-and-specialty (11)",SM Center Pasig,metro-manila,17
+ayala,ayala-vermosa,90,89,"dine (42), shop (31), services (9)",Ayala Malls Vermosa,south-luzon,0
+ayala,ayala-marikina,89,87,"dine (40), shop (20), services (14)",Ayala Malls Marikina,metro-manila,4
+araneta,ali-mall,87,87,,Ali Mall,metro-manila,37
+sm,sm-center-san-pedro,86,86,"dining (34), shopping (17), cyberzone (14)",SM Center San Pedro,south-luzon,3
+robinsons,robinsons-malabon,86,86,,Robinsons Town Mall Malabon,metro-manila,23
+waltermart,dasmarinas,83,83,"food choices (36), shops (18), cybermart (10)",WalterMart Dasmariñas,south-luzon,7
+ayala,ayala-the-district-imus,82,80,"shop (31), dine (23), essentials (14)",The District Imus,south-luzon,8
+robinsons,robinsons-fuente,80,75,,Robinsons Fuente,visayas,20
+araneta,gateway-mall,79,78,,Gateway Mall,metro-manila,9
+robinsons,robinsons-gen-san,79,75,,Robinsons Place GenSan,mindanao,31
+waltermart,antipolo,77,77,"food choices (40), shops (14), services (10)",WalterMart Antipolo,metro-manila,12
+ayala,ayala-legazpi,77,74,"shop (37), dine (20), services (11)",Ayala Malls Legazpi,south-luzon,8
+waltermart,gapan,77,77,"shops (25), food choices (23), cybermart (14)",WalterMart Gapan,north-luzon,10
+waltermart,sucat,76,75,"food choices (32), shops (19), cybermart (9)",WalterMart Sucat,metro-manila,6
+ayala,ayala-bonifacio-high-street,76,72,"dine (37), shop (35), services (2)",Bonifacio High Street,metro-manila,17
+megaworld,forbes-town,75,75,"dine (35), services (28), shop (12)",Forbes Town,metro-manila,39
+waltermart,bacoor,75,75,"food choices (38), shops (15), services (10)",WalterMart Bacoor,south-luzon,9
+waltermart,sta-maria,75,75,"food choices (25), shops (24), cybermart (10)",WalterMart Sta. Maria,north-luzon,1
+sm,sm-center-muntinlupa,74,74,"dining (22), shopping (16), cyberzone (14)",SM Center Muntinlupa,metro-manila,3
+waltermart,erodriguez,72,72,"food choices (38), shops (13), cybermart (9)",WalterMart E.Rodriguez,metro-manila,12
+waltermart,bicutan,69,69,"food choices (31), shops (14), cybermart (11)",WalterMart Bicutan,metro-manila,4
+sm,sm-center-sangandaan,68,68,"dining (22), shopping (17), cyberzone (13)",SM Center Sangandaan,north-luzon,3
+sm,sm-center-imus,67,67,"dining (22), shopping (14), cyberzone (11)",SM Center Imus,south-luzon,4
+ayala,ayala-pavilion,67,64,"shop (30), dine (19), services (13)",Pavilion Mall,south-luzon,13
+waltermart,guiguinto,66,66,"food choices (28), shops (14), cybermart (11)",WalterMart Guiguinto,north-luzon,5
+filinvest,fora,65,64,"food court (12), apparel (9), dining (9)",Fora Mall,south-luzon,19
+starmall,edsa-shaw,64,64,"dining (25), shopping (23), services (12)",Starmall EDSA-Shaw,metro-manila,21
+sm,sm-megacenter-cabanatuan,61,61,"cyberzone (18), dining (17), shopping (15)",SM Megacenter Cabanatuan,north-luzon,2
+robinsons,robinsons-otis,61,60,,Robinsons Otis,metro-manila,27
+robinsons,robinsons-angeles,61,58,,Robinsons Angeles,north-luzon,15
+waltermart,sta-rosa,60,60,"food choices (27), shops (15), services (9)",WalterMart Sta. Rosa,south-luzon,8
+robinsons,robinsons-cainta,59,58,,Robinsons Cainta,metro-manila,14
+waltermart,san-fernando,59,59,"shops (20), food choices (20), services (9)",WalterMart San Fernando,north-luzon,2
+filinvest,main-square,58,57,"government offices (12), dining (12), health, beauty and wellness (8)",Main Square,south-luzon,33
+waltermart,taytay,57,56,"food choices (26), shops (13), services (10)",WalterMart Taytay,metro-manila,7
+waltermart,baliwag,57,56,"food choices (31), shops (12), services (5)",WalterMart Baliwag,north-luzon,3
+waltermart,balayan,56,55,"food choices (21), cybermart (13), shops (11)",WalterMart Balayan,south-luzon,4
+megaworld,lucky-chinatown-prosperity-wing,56,56,"dine (30), services (22), shop (4)",Lucky Chinatown - Prosperity Wing,metro-manila,11
+sm,sm-city-olongapo-downtown,56,55,"dining (15), cyberzone (12), shopping (10)",SM City Olongapo Downtown,north-luzon,5
+sm,sm-city-san-fernando-downtown,56,55,"dining (22), cyberzone (18), shopping (8)",SM City San Fernando Downtown,north-luzon,3
+waltermart,subic,55,55,"food choices (17), cybermart (14), shops (12)",WalterMart Subic,north-luzon,3
+waltermart,naic,55,55,"food choices (31), shops (10), cybermart (8)",WalterMart Naic,south-luzon,4
+waltermart,malolos,54,54,"food choices (27), shops (13), wellness (5)",WalterMart Malolos,north-luzon,6
+waltermart,general-trias,53,53,"food choices (22), shops (16), cybermart (5)",WalterMart General Trias,south-luzon,4
+robinsons,robinsons-los-banos,53,48,,Robinsons Town Mall Los Banos,south-luzon,7
+megaworld,san-lorenzo-place-mall,53,53,"dine (24), services (17), shop (12)",San Lorenzo Place Mall,metro-manila,14
+waltermart,arayat,51,51,"food choices (24), shops (13), cybermart (7)",WalterMart Arayat,north-luzon,2
+araneta,gateway-mall-2,51,51,,Gateway Mall 2,metro-manila,8
+megaworld,eastwood-cyber-mall,51,50,"services (24), dine (16), shop (11)",Eastwood Cyber Mall,metro-manila,16
+ayala,ayala-metropoint,50,44,"shop (15), dine (14), essentials (9)",Metro Point Mall,metro-manila,7
+waltermart,paniqui,49,49,"food choices (19), shops (11), cybermart (10)",WalterMart Paniqui,north-luzon,3
+waltermart,plaridel,49,49,"food choices (18), shops (12), cybermart (7)",WalterMart Plaridel,north-luzon,3
+waltermart,cabanatuan,49,49,"food choices (26), shops (13), services (6)",WalterMart Cabanatuan,north-luzon,2
+waltermart,makiling,49,49,"food choices (21), shops (15), services (7)",WalterMart Makiling,south-luzon,12
+waltermart,balanga,48,48,"food choices (23), shops (10), cybermart (7)",WalterMart Balanga,north-luzon,6
+waltermart,nasugbu,47,47,"food choices (17), shops (13), cybermart (9)",WalterMart Nasugbu,south-luzon,0
+waltermart,tanauan,47,47,"shops (21), food choices (12), services (5)",WalterMart Tanauan,south-luzon,7
+sm,smdc-light-mall,46,46,"dining (18), wellness (11), hobbies-and-specialty (6)",SMDC Light Mall,metro-manila,5
+waltermart,caloocan,46,46,"food choices (20), shops (10), services (5)",WalterMart Caloocan,metro-manila,3
+robinsons,robinsons-cagayan-de-oro,45,42,,Robinsons Cagayan de Oro,mindanao,21
+waltermart,trece-martires,45,45,"food choices (18), shops (16), services (7)",WalterMart Trece Martires,south-luzon,5
+megaworld,festive-walk-parade,43,43,"dine (22), services (15), shop (4)",Festive Walk Parade,visayas,29
+megaworld,california-garden-square,43,43,"services (20), dine (16), shop (7)",California Garden Square,metro-manila,20
+megaworld,mactan-newtown,42,42,"dine (22), services (13), shop (6)",Mactan Newtown,visayas,17
+waltermart,concepcion,42,42,"food choices (12), cybermart (11), shops (10)",WalterMart Concepcion,north-luzon,1
+ayala,ayala-one-bonifacio-high-street,42,38,"shop (19), dine (18), services (4)",One Bonifacio High Street,metro-manila,6
+ayala,ayala-the-district-dasmarinas,41,36,"essentials (15), shop (12), dine (7)",The District Dasmarinas,south-luzon,7
+sm,sm-savemore-tacloban,40,39,"shopping (11), dining (11), cyberzone (9)",SM Savemore Tacloban,visayas,2
+sm,sm-by-the-bay,39,38,"dining (36), shopping (2), entertainment (1)",SM By the Bay,metro-manila,16
+ortigas,tiendesitas,39,36,"shop (21), dining (13)",Tiendesitas,metro-manila,22
+megaworld,uptown-parade,39,39,"dine (20), services (11), experience (4)",Uptown Parade,metro-manila,25
+waltermart,muntinlupa,39,39,"food choices (17), shops (10), services (6)",WalterMart W.MALL Muntinlupa,metro-manila,2
+waltermart,san-jose,38,38,"shops (13), food choices (12), cybermart (8)",WalterMart San Jose,north-luzon,0
+megaworld,mckinley-west,38,34,"dine (21), services (12), shop (5)",McKinley West,metro-manila,13
+waltermart,macapagal,38,38,"food choices (15), shops (13), services (4)",WalterMart W.MALL Macapagal,metro-manila,3
+sm,sm-cherry-antipolo,38,38,"dining (11), shopping (9), services (4)",SM Center Antipolo Downtown,metro-manila,13
+sm,sm-cherry-shaw,37,36,"dining (14), wellness (9), hobbies-and-specialty (4)",SM Center Shaw,metro-manila,12
+megaworld,lucky-chinatown-imperial-wing,37,37,"dine (24), services (10), shop (3)",Lucky Chinatown - Imperial Wing,metro-manila,17
+sm,smdc-jazz-mall,37,37,"dining (18), hobbies-and-specialty (4), food-beverages (4)",SMDC Jazz Mall,metro-manila,5
+ortigas,the-strip,36,22,"shop (12), dining (10), bank (1)",The Strip,metro-manila,13
+megaworld,paseo-center,34,33,"dine (24), shop (5), services (5)",Paseo Center,metro-manila,9
+ayala,ayala-serendra,34,33,"dine (17), essentials (7), services (5)",Shops at Serendra,metro-manila,12
+robinsons,robinsons-luisita,33,30,,Robinsons Luisita,north-luzon,8
+robinsons,robinsons-tagaytay,33,31,,Robinsons Tagaytay,south-luzon,9
+megaworld,alabang-west-parade,33,33,"dine (18), services (8), shop (7)",Alabang West Parade,metro-manila,23
+waltermart,candelaria,31,31,"food choices (13), cybermart (12), shops (4)",WalterMart Candelaria,south-luzon,5
+sm,moa-square,30,30,"shopping (11), dining (11), home (4)",MOA Square,metro-manila,15
+waltermart,cabuyao,28,28,"food choices (16), shops (5), services (3)",WalterMart Cabuyao,south-luzon,3
+sm,smdc-mplace-mall,28,28,"dining (8), wellness (5), shopping (4)",SMDC Mplace Mall,metro-manila,8
+megaworld,arcovia-city,28,28,"dine (21), services (4), shop (3)",Arcovia City,metro-manila,7
+megaworld,greenhouse-village-square,28,28,"services (12), dine (10), shop (6)",The Greenhouse at Village Square,metro-manila,13
+waltermart,capas,27,27,"food choices (10), shops (7), cybermart (5)",WalterMart Capas,north-luzon,1
+filinvest,dumaguete,27,27,"dining / food (kiosk / carts) (6), dining (5), telecoms / computers / electronics (5)",Filinvest Malls Dumaguete,visayas,10
+sm,smdc-strip-at-mezza,25,25,"dining (14), wellness (5), hobbies-and-specialty (3)",SMDC Strip at Mezza,metro-manila,4
+sm,sm-cherry-congressional,25,25,"dining (7), wellness (6), hobbies-and-specialty (6)",SM Center Congressional,metro-manila,1
+robinsons,robinsons-cybergate-davao,24,24,,Robinsons Cybergate Davao,mindanao,10
+sm,smdc-sun-mall,24,24,"wellness (7), hobbies-and-specialty (4), dining (4)",SMDC Sun Mall,metro-manila,4
+sm,smdc-fame-mall,23,23,"dining (9), services (4), groceries (3)",SMDC Fame Mall,metro-manila,8
+waltermart,the-junction,23,23,"shops (7), food choices (7), cybermart (5)",WalterMart The Junction,metro-manila,2
+sm,smdc-air-mall,23,23,"dining (12), wellness (6), services (3)",SMDC Air Mall,metro-manila,9
+sm,sm-savemore-apalit,23,23,"cyberzone (9), shopping (6), dining (6)",SM Savemore Apalit,north-luzon,2
+sm,smdc-grace-mall,23,23,"dining (12), wellness (6), hobbies-and-specialty (2)",SMDC Grace Mall,metro-manila,5
+waltermart,batangas-city,22,22,"food choices (10), shops (7), cybermart (3)",WalterMart Batangas City,south-luzon,0
+waltermart,carmona,21,21,"food choices (10), shops (6), wellness (3)",WalterMart Carmona,south-luzon,2
+sm,sm-savemore-nagtahan,21,19,"dining (6), cyberzone (5), wellness (3)",SM Savemore Nagtahan,metro-manila,2
+robinsons,the-plaza,19,19,"dine (11), shop (7), recharge (1)",The Plaza Bagong Silang,metro-manila,2
+filinvest,il-corso,19,19,"dining (15), health, beauty and wellness (4)",IL Corso,visayas,14
+waltermart,sta-rosa-bel-air,17,17,"food choices (9), shops (4), services (2)",WalterMart Sta. Rosa Bel-Air,south-luzon,1
+megaworld,twin-lakes,17,16,"dine (13), services (3), shop (1)",Twin Lakes,south-luzon,4
+sm,sm-hypermarket-sucat-lopez,16,16,"dining (9), cyberzone (2), atm (1)",SM Hypermarket Sucat Lopez,metro-manila,2
+sm,sm-marketmall-dasmarinas,16,16,"shopping (4), dining (3), cyberzone (3)",SM Marketmall Dasmarinas,south-luzon,6
+megaworld,three-central,15,15,"services (7), dine (5), shop (3)",Three Central Mall,metro-manila,6
+waltermart,talavera,15,15,"shops (4), food choices (4), cybermart (4)",WalterMart Talavera,north-luzon,0
+sm,smdc-strip-at-sea,15,15,"hobbies-and-specialty (4), wellness (4), dining (4)",SMDC Strip at Sea,metro-manila,6
+sm,smdc-strip-at-shore,15,15,"dining (7), wellness (4), hobbies-and-specialty (2)",SMDC Strip at Shore,metro-manila,8
+sm,smdc-strip-at-grass,14,14,"wellness (4), dining (4), hobbies-and-specialty (3)",SMDC Strip at Grass,metro-manila,4
+megaworld,clubhouse-temple-drive,14,14,"dine (6), services (5), shop (3)",The Clubhouse at Temple Drive,metro-manila,6
+sm,sm-hypermarket-lapulapu,13,13,"dining (5), wellness (3), cyberzone (2)",SM Hypermarket Lapu-Lapu,visayas,1
+sm,smdc-breeze-mall,11,11,"hobbies-and-specialty (3), wellness (2), dining (2)",SMDC Breeze Mall,metro-manila,7
+starmall,talisay,10,10,"dining (5), shopping (3), services (2)",Starmall Talisay Cebu,visayas,2
+sm,nu-mall-of-asia-building,9,9,"dining (5), groceries (1), entertainment (1)",NU MALL OF ASIA BUILDING,metro-manila,6
+megaworld,boracay-newcoast,9,9,"services (4), dine (3), shop (2)",Boracay Newcoast,visayas,4
+sm,wind-residences,8,8,"hobbies-and-specialty (2), dining (2), groceries (1)",Wind Residences,south-luzon,0
+sm,mall-of-asia-arena-annex-bldg,7,7,"dining (5), groceries (1), hobbies-and-specialty (1)",Mall Of Asia Arena Annex Bldg,metro-manila,0
+sm,smdc-strip-at-trees,7,7,"dining (4), groceries (1), wellness (1)",SMDC Strip at Trees,metro-manila,2
+sm,smdc-green-mall,6,6,"dining (4), shopping (1), wellness (1)",SMDC Green Mall,metro-manila,0
+sm,smdc-strip-at-shell,5,5,"groceries (2), atm (1), dining (1)",SMDC Strip at Shell,metro-manila,2
+sm,smdc-strip-at-blue,5,5,"hobbies-and-specialty (3), dining (1), wellness (1)",SMDC Strip at Blue,metro-manila,2
+sm,smdc-strip-at-princeton,4,4,"groceries (1), hobbies-and-specialty (1), atm (1)",SMDC Strip at Princeton,metro-manila,1
+sm,smdc-strip-at-shine,2,2,"groceries (1), wellness (1)",SMDC Strip at Shine,metro-manila,1
+sm,smdc-strip-at-berkeley,2,2,"atm (1), shopping (1)",SMDC Strip at Berkeley,metro-manila,0
+sm,sky-ranch-pampanga,1,1,entertainment (1),Sky Ranch Pampanga,north-luzon,0
+sm,sky-ranch-baguio,1,1,entertainment (1),Sky Ranch Baguio,north-luzon,0
+sm,sky-ranch-tagaytay,1,1,entertainment (1),Sky Ranch Tagaytay,south-luzon,0
+sm,smby-amusement-park,1,1,entertainment (1),SMBY Amusement Park,,1
+waltermart,altaraza,1,1,shops (1),WalterMart Altaraza,,0
