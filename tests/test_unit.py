@@ -1375,3 +1375,74 @@ class TestEmptyAndThin:
         text = "\n".join(validate.empty_section(malls, stores, set()))
         assert "NOT ACCOUNTED FOR" in text, text
         assert validate.thin_section(malls, stores)
+
+
+class TestFetcherRetries:
+    class FakeResponse:
+        def __init__(self, status, text="{}"):
+            self.status_code, self.text = status, text
+
+        def raise_for_status(self):
+            from curl_cffi.requests.exceptions import HTTPError
+
+            if self.status_code >= 400:
+                raise HTTPError(f"HTTP Error {self.status_code}", 0, self)
+
+    def _fetcher(self, tmp_path, statuses, proxy=None):
+        from mallscape_scrape.fetch import Fetcher
+
+        fetcher = Fetcher(tmp_path, rate=1000, proxy=proxy)
+        seen = []
+        replies = iter(statuses)
+
+        def get(url, params=None, proxy=None):
+            seen.append(proxy)
+            return self.FakeResponse(next(replies))
+
+        fetcher.client.get = get
+        return fetcher, seen
+
+    def _request(self, fetcher):
+        from tenacity import stop_after_attempt, wait_none
+
+        from mallscape_scrape.fetch import Fetcher
+
+        retrying = Fetcher._request.retry_with(wait=wait_none(), stop=stop_after_attempt(4))
+        return retrying(fetcher, "https://example.invalid/", None)
+
+    def test_a_403_through_the_rotating_proxy_is_retried_through_it(self, tmp_path):
+        """Each request through the endpoint leaves from a new IP, so the
+        retry is what moves a refused request onto an IP the WAF accepts."""
+        fetcher, seen = self._fetcher(tmp_path, [403, 403, 200], proxy="http://u:p@rotate:80")
+        assert self._request(fetcher) == "{}"
+        assert seen == ["http://u:p@rotate:80"] * 3
+
+    def test_without_a_pool_requests_go_direct(self, tmp_path):
+        fetcher, seen = self._fetcher(tmp_path, [403, 200])
+        self._request(fetcher)
+        assert seen == [None, None]
+
+    def test_a_404_is_not_retried(self, tmp_path):
+        from curl_cffi.requests.exceptions import HTTPError
+
+        fetcher, seen = self._fetcher(tmp_path, [404, 200])
+        with pytest.raises(HTTPError):
+            self._request(fetcher)
+        assert len(seen) == 1
+
+    def test_a_connection_failure_is_retried(self, tmp_path):
+        from curl_cffi.requests.exceptions import ConnectionError as CurlConnectionError
+
+        fetcher, _ = self._fetcher(tmp_path, [200])
+        calls = []
+        real_get = fetcher.client.get
+
+        def flaky(url, params=None, proxy=None):
+            calls.append(url)
+            if len(calls) == 1:
+                raise CurlConnectionError("connect failed")
+            return real_get(url, params=params, proxy=proxy)
+
+        fetcher.client.get = flaky
+        assert self._request(fetcher) == "{}"
+        assert len(calls) == 2

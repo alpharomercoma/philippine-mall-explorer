@@ -12,11 +12,15 @@
 #   attempts, up to 300s) inside the scraper itself.
 # - A chain that fails outright, or whose listings collapse against the
 #   previous snapshot, keeps that snapshot's rows and is named in the run
-#   report with its original fetched date. This matters here: SM, WalterMart
-#   and Araneta refuse GitHub's runner IP ranges outright (verified by a live
-#   run 2026-08-31, and no User-Agent changes it), so on GitHub-hosted runners
-#   those chains refresh only when someone runs `make scrape` from a
-#   residential IP and pushes, or a self-hosted runner picks this job up.
+#   report with its original fetched date.
+# - Two operators wall off GitHub's runners (verified live 2026-10-13).
+#   WalterMart and Araneta sit behind Cloudflare, whose bot check passes the
+#   browser TLS fingerprint the fetcher presents. SM's AWS WAF refuses the
+#   runner IP range whatever the client, so SM goes out through the rotating
+#   residential proxy in the WEBSHARE_PROXY_URL secret: every request leaves
+#   from a new IP, and the odd 403 is retried from another. If the secret is
+#   missing or the proxy is down, SM is carried forward like any other
+#   failed chain.
 # - The scrape step as a whole runs twice with a 10 minute pause. Responses
 #   are cached on disk for the life of the job, so the second attempt refetches
 #   only what failed, not the requests that succeeded.
@@ -76,6 +80,9 @@ jobs:
           uv run playwright install --with-deps chromium
 
       - name: Scrape every operator
+        env:
+          # Scoped to this step: it carries the proxy account's token.
+          MALLSCAPE_PROXY_URL: ${{ secrets.WEBSHARE_PROXY_URL }}
         run: |
           for attempt in 1 2; do
             uv run mallscape scrape && break
