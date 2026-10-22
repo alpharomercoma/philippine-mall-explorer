@@ -112,15 +112,15 @@ the search box and the brand focus apply to both. See
 
 | operator | properties | malls | listings |
 |---|---:|---:|---:|
-| SM Supermalls | 126 | 95 | 19,843 |
-| Robinsons Malls | 54 | 54 | 8,464 |
-| Ayala Malls | 32 | 32 | 5,984 |
+| SM Supermalls | 126 | 95 | 19,791 |
+| Robinsons Malls | 54 | 54 | 8,576 |
+| Ayala Malls | 32 | 32 | 6,063 |
 | WalterMart | 47 | 47 | 2,220 |
-| Megaworld Lifestyle Malls | 26 | 26 | 2,101 |
-| Ortigas Land | 4 | 4 | 1,282 |
+| Megaworld Lifestyle Malls | 26 | 26 | 2,124 |
+| Ortigas Land | 4 | 4 | 1,300 |
 | Filinvest Malls | 5 | 5 | 953 |
+| Araneta City | 4 | 4 | 753 |
 | Fisher Mall | 2 | 2 | 342 |
-| Araneta City | 4 | 4 | 319 |
 | Starmall | 4 | 4 | 279 |
 
 `malls` excludes non-mall retail such as condo podiums, amusement parks and

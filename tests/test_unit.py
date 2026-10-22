@@ -360,22 +360,100 @@ class TestCollapseReconcile:
         assert carried == set()
 
 
-class TestAranetaParser:
-    def test_ali_mall_gallery_items(self):
-        from unittest.mock import Mock
+class TestAranetaDirectories:
+    """aranetacity.com after its October 2026 rebuild: three directories per
+    mall, filtered by building and paginated. Fixtures are Ali Mall's full set
+    of pages plus /malls, captured 2026-10-21."""
 
+    class FakeFetcher:
+        def __init__(self, pages=None):
+            self.calls = []
+            self.pages = pages or {}
+
+        def get_text(self, url, params=None):
+            self.calls.append((url, dict(params or {})))
+            if url.endswith("/malls"):
+                return (FIXTURES / "araneta-malls.html").read_text()
+            directory = url.rsplit("/", 1)[1]
+            key = (directory, params["building"], params["page"])
+            if key in self.pages:
+                return self.pages[key]
+            path = FIXTURES / f"araneta-ali-mall-{directory}-p{params['page']}.html"
+            # past the last page the site renders a page with no cards
+            return path.read_text() if path.exists() else "<html><body></body></html>"
+
+    def make(self, fetcher=None):
         from mallscape_scrape.scrapers.araneta import AranetaScraper
 
         s = AranetaScraper.__new__(AranetaScraper)
         s.warnings = []
-        s.fetcher = Mock()
-        s.fetcher.get_text.return_value = (FIXTURES / "araneta-ali-mall.html").read_text()
-        mall = Mall(chain="araneta", mall_id="ali-mall", mall_name="Ali Mall", extra={"slug": "ali-mall"})
-        stores = s.scrape_mall(mall)
-        # must match the raw gallery-item count exactly (no silent dedupe)
-        assert len(stores) == 88
-        handyman = next(x for x in stores if x.store_name_raw == "HANDYMAN")
-        assert handyman.floor == "LGF"
+        s.fetcher = fetcher or self.FakeFetcher()
+        return s
+
+    def ali_mall(self, s):
+        return next(m for m in s.discover_malls() if m.mall_id == "ali-mall")
+
+    def test_every_directory_and_page_is_read(self):
+        s = self.make()
+        stores = s.scrape_mall(self.ali_mall(s))
+        # must match the raw card counts exactly (no silent dedupe)
+        assert len(stores) == 199
+        assert Counter(x.category for x in stores) == {"shopping": 87, "dining": 48, "services": 64}
+        assert s.warnings == []
+
+    def test_pagination_stops_at_the_first_empty_page(self):
+        s = self.make()
+        s.scrape_mall(self.ali_mall(s))
+        pages = Counter(url.rsplit("/", 1)[1] for url, _ in s.fetcher.calls if "/malls" not in url)
+        # real pages plus the one empty page that ends each directory
+        assert pages == {"shopping": 4, "dining": 3, "services": 4}
+
+    def test_floor_is_split_from_the_building(self):
+        s = self.make()
+        stores = s.scrape_mall(self.ali_mall(s))
+        by_name = {x.store_name_raw: x for x in stores}
+        assert by_name["7-Eleven"].floor == "GF"
+        assert by_name["Arlinfi's Biko Bumbong"].floor == "Food Gallery"
+        assert "Tokyo Tokyo" in by_name, "names are stripped and entity-decoded"
+
+    def test_an_ignored_building_filter_raises_instead_of_misattributing(self):
+        """An unknown building value makes the site list the whole complex.
+        Serving Ali Mall's pages for Farmers Plaza is exactly that shape."""
+        from mallscape_scrape.fetch import FetchError
+
+        s = self.make()
+        plaza = next(m for m in s.discover_malls() if m.mall_id == "farmers-plaza")
+        with pytest.raises(FetchError, match="building filter ignored"):
+            s.scrape_mall(plaza)
+
+    def test_a_stray_card_from_another_venue_is_skipped_and_reported(self):
+        page = (FIXTURES / "araneta-ali-mall-shopping-p3.html").read_text()
+        stray = page.replace("GF, Ali Mall", "GF, Gateway Mall 1", 1)
+        assert stray != page
+        s = self.make(self.FakeFetcher({("shopping", "ali-mall", 3): stray}))
+        stores = s.scrape_mall(self.ali_mall(s))
+        assert len(stores) == 198
+        assert any("Gateway Mall 1" in w for w in s.warnings)
+
+    def test_mall_ids_survive_the_slug_change(self):
+        """The ids key the coordinate registry and every earlier snapshot."""
+        s = self.make()
+        malls = {m.mall_id: m.extra["slug"] for m in s.discover_malls()}
+        assert malls == {
+            "gateway-mall": "gateway-mall-1",
+            "gateway-mall-2": "gateway-mall-2",
+            "ali-mall": "ali-mall",
+            "farmers-plaza": "farmers-plaza",
+        }
+        assert s.warnings == [], "the live /malls lists exactly these four"
+
+    def test_a_new_mall_on_the_roster_is_flagged(self):
+        s = self.make()
+        roster = (FIXTURES / "araneta-malls.html").read_text()
+        roster += '<a href="/shopping?building=gateway-mall-3">Gateway Mall 3</a>'
+        s.fetcher.get_text = lambda url, params=None: roster
+        s.discover_malls()
+        assert any("gateway-mall-3" in w for w in s.warnings)
 
 
 class TestSnapshotIntegrity:
