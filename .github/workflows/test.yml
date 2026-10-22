@@ -1,0 +1,28 @@
+# Lint and the offline test suites on every push and pull request, so a parser
+# change is checked against the captured fixtures before it reaches the
+# monthly rescrape rather than on the 2nd of the month. Nothing here touches
+# the network beyond installing dependencies; the end-to-end browser tests
+# need a freshly built site and stay in the rescrape job.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run pytest tests/test_unit.py tests/test_integration.py -q
