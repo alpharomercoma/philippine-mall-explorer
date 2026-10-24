@@ -16,7 +16,10 @@ Each tenant is one card::
     </article>
 
 The location is ``<floor>, <building name>``; some carry only the building.
-A page past the last one renders no cards, which is how pagination ends.
+A page past the last one keeps the listing container and says so in it
+("No shopping establishments found"), which is how pagination ends. Any other
+page without cards (a bot challenge served with a 200, a redesign) is an
+error rather than the end, or it would silently cut the directory short.
 
 Gotchas:
 
@@ -69,19 +72,32 @@ def _text(node) -> str:
 
 
 def parse_cards(html: str) -> list[tuple[str, str, str]]:
-    """(establishment id, name, location) for each card on a directory page."""
+    """(establishment id, name, location) for each card on a directory page.
+
+    A card without a title link still yields a row, with an empty name, so
+    the caller can tell markup drift apart from a card that is not there.
+    """
     cards = []
     for card in HTMLParser(html).css("article.est-card"):
         link = card.css_first("h3.est-card-title a")
-        if link is None:
-            continue
-        match = re.search(r"/establishment/(\d+)", link.attributes.get("href") or "")
+        match = re.search(r"/establishment/(\d+)", (link.attributes.get("href") or "") if link else "")
         cards.append((
             match.group(1) if match else "",
             _text(link),
             _text(card.css_first(".est-card-location span")),
         ))
     return cards
+
+
+def is_end_page(html: str) -> bool:
+    """True for the page the site renders past the last one."""
+    grid = HTMLParser(html).css_first("div.est-grid-container")
+    return grid is not None and "establishments found" in _text(grid)
+
+
+def same_building(a: str, b: str) -> bool:
+    """Building names compared the way a person reads them, not byte for byte."""
+    return " ".join(a.split()).casefold() == " ".join(b.split()).casefold()
 
 
 def split_location(location: str) -> tuple[str | None, str]:
@@ -144,8 +160,19 @@ class AranetaScraper(MallChainScraper):
                 )
                 cards = parse_cards(html)
                 if not cards:
+                    if not is_end_page(html):
+                        raise FetchError(
+                            f"{mall.mall_id}: /{directory} page {page} has no tenant cards "
+                            "and is not the directory's end page - challenge or markup change"
+                        )
                     break
-                elsewhere = [c for c in cards if split_location(c[2])[1] != building]
+                unnamed = sum(1 for c in cards if not c[1])
+                if unnamed:
+                    self.alert(
+                        f"{mall.mall_id}: {unnamed} /{directory} card(s) on page {page} have no "
+                        "title link - markup may have changed"
+                    )
+                elsewhere = [c for c in cards if not same_building(split_location(c[2])[1], building)]
                 if len(elsewhere) >= len(cards) - len(elsewhere):
                     raise FetchError(
                         f"{mall.mall_id}: building filter ignored on /{directory} page {page} - "
@@ -158,7 +185,7 @@ class AranetaScraper(MallChainScraper):
                     )
                 for est_id, name, location in cards:
                     floor, where = split_location(location)
-                    if where != building or not name:
+                    if not same_building(where, building) or not name:
                         continue
                     # one establishment, one row: guards against a tenant
                     # being filed under two directories

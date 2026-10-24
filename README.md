@@ -178,7 +178,7 @@ believed.
 Those guards keep a bad month off the site, but they also keep it green: a
 chain carried forward, or a mall that failed, still publishes. So
 `.github/workflows/check.yml` runs everything the monthly run does, every
-Monday at 06:17 Manila time, and publishes nothing. It fails loudly when the
+Monday at 18:17 Manila time, and publishes nothing. It fails loudly when the
 scrape, the build or the tests fail, and when `mallscape check` finds a chain
 or mall whose scrape raised, a chain carried forward, a scraper alert (the
 operator's roster or markup drifted), or an empty mall that

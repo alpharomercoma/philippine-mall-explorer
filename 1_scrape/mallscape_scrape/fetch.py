@@ -19,8 +19,19 @@ import time
 import urllib.parse
 from pathlib import Path
 
+from curl_cffi import CurlOpt
 from curl_cffi import requests as curl
-from curl_cffi.requests.exceptions import HTTPError, RequestException
+from curl_cffi.requests.exceptions import (
+    ChunkedEncodingError,
+    HTTPError,
+    IncompleteRead,
+    ProxyError,
+    RequestException,
+    Timeout,
+)
+from curl_cffi.requests.exceptions import (
+    ConnectionError as CurlConnectionError,
+)
 from tenacity import (
     retry,
     retry_if_exception,
@@ -48,9 +59,16 @@ def redact(text: str) -> str:
     ``scheme://***@``.
     """
     if config.PROXY_URL:
-        parts = urllib.parse.urlsplit(config.PROXY_URL)
-        forms = set()
-        for secret in (parts.password, parts.username):
+        # The whole URL as configured, too: curl quotes it verbatim when it
+        # cannot parse it ("Unsupported proxy syntax"), and a URL with an
+        # unescaped "/" or "[" in the password parses to no userinfo at all.
+        forms = {config.PROXY_URL}
+        try:
+            parts = urllib.parse.urlsplit(config.PROXY_URL)
+            secrets = (parts.password, parts.username)
+        except ValueError:  # redacting must never be what fails
+            secrets = ()
+        for secret in secrets:
             if secret:
                 plain = urllib.parse.unquote(secret)
                 forms |= {secret, plain, urllib.parse.quote(plain, safe="")}
@@ -64,13 +82,25 @@ class FetchError(Exception):
     pass
 
 
+# Failures to get a whole answer: connection, timeout, proxy, TLS, or a body
+# cut off mid-transfer. curl_cffi attaches a Response to every one of these,
+# with status 0, or with the real status when the headers arrived before the
+# transfer died, so they are recognised by type and never by their status.
+_TRANSPORT = (CurlConnectionError, Timeout, ProxyError, IncompleteRead, ChunkedEncodingError)
+
+
 def _retryable(exc: BaseException) -> bool:
-    if isinstance(exc, HTTPError) and exc.response is not None:
+    if isinstance(exc, _TRANSPORT):
+        return True
+    status = exc.response.status_code if isinstance(exc, RequestException) and exc.response is not None else 0
+    if status:
         # 403: SM's WAF rate-limits sustained clients; blocks lift after a
         # cooldown, so back off hard and retry rather than dying mid-run
-        return exc.response.status_code in (403, 429, 500, 502, 503, 504)
-    # no response at all: connection, timeout, proxy or TLS failure
-    return isinstance(exc, RequestException) and exc.response is None
+        return status in (403, 429, 500, 502, 503, 504)
+    # Any other curl failure with no HTTP answer, such as a read error or an
+    # HTTP/2 stream reset. The exact types only: their subclasses are a bad
+    # URL, schema, header or redirect loop, which no retry can fix.
+    return type(exc) in (RequestException, HTTPError)
 
 
 class Fetcher:
@@ -100,9 +130,13 @@ class Fetcher:
             },
             timeout=timeout,
             allow_redirects=True,
+            # A rotating proxy picks its exit IP per connection, and curl keeps
+            # an HTTPS tunnel open across requests: measured 2026-10-24, one
+            # session sent every request out of one IP. A new connection per
+            # request is what makes every request, and every retry of a 403,
+            # leave from a new IP.
+            curl_options={CurlOpt.FRESH_CONNECT: 1, CurlOpt.FORBID_REUSE: 1} if proxy else None,
         )
-        # Meant for a rotating endpoint: every request leaves from a new IP, so
-        # a 403 from one the WAF dislikes is retried from another.
         self.proxy = proxy
         self.requests_made = 0
         self.cache_hits = 0

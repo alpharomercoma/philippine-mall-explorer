@@ -383,8 +383,8 @@ class TestAranetaDirectories:
             if key in self.pages:
                 return self.pages[key]
             path = FIXTURES / f"araneta-ali-mall-{directory}-p{params['page']}.html"
-            # past the last page the site renders a page with no cards
-            return path.read_text() if path.exists() else "<html><body></body></html>"
+            # past the last page the site renders its end page (captured 2026-10-24)
+            return (path if path.exists() else FIXTURES / "araneta-directory-end.html").read_text()
 
     def make(self, fetcher=None):
         from mallscape_scrape.scrapers.araneta import AranetaScraper
@@ -460,6 +460,36 @@ class TestAranetaDirectories:
         s.discover_malls()
         # an alert, not just a warning: the weekly check fails on it
         assert any("gateway-mall-3" in a for a in s.alerts)
+
+    def test_a_cardless_page_that_is_not_the_end_raises_instead_of_truncating(self):
+        """A bot challenge served with a 200 mid-directory used to read as the
+        last page: Ali Mall published 142 of 199 tenants as fresh, and the
+        check passed."""
+        from mallscape_scrape.fetch import FetchError
+
+        challenge = "<html><title>Just a moment...</title><body>Checking your browser</body></html>"
+        s = self.make(self.FakeFetcher({("shopping", "ali-mall", 2): challenge}))
+        with pytest.raises(FetchError, match="not the directory's end page"):
+            s.scrape_mall(self.ali_mall(s))
+
+    def test_a_card_without_a_title_link_is_an_alert(self):
+        import re
+
+        page = (FIXTURES / "araneta-ali-mall-shopping-p2.html").read_text()
+        unlinked = re.sub(r'(<h3 class="est-card-title">\s*)<a[^>]*>(.*?)</a>', r"\1\2", page, count=1, flags=re.S)
+        assert unlinked != page
+        s = self.make(self.FakeFetcher({("shopping", "ali-mall", 2): unlinked}))
+        stores = s.scrape_mall(self.ali_mall(s))
+        assert len(stores) == 198
+        assert any("no title link" in a for a in s.alerts)
+
+    def test_building_names_match_regardless_of_case_and_spacing(self):
+        page = (FIXTURES / "araneta-ali-mall-shopping-p1.html").read_text()
+        shouted = page.replace("GF, Ali Mall", "GF,  ALI  MALL ", 1)
+        assert shouted != page
+        s = self.make(self.FakeFetcher({("shopping", "ali-mall", 1): shouted}))
+        assert len(s.scrape_mall(self.ali_mall(s))) == 199
+        assert s.warnings == []
 
 
 class TestSnapshotIntegrity:
@@ -1514,22 +1544,73 @@ class TestFetcherRetries:
             self._request(fetcher)
         assert len(seen) == 1
 
-    def test_a_connection_failure_is_retried(self, tmp_path):
-        from curl_cffi.requests.exceptions import ConnectionError as CurlConnectionError
+    @pytest.mark.parametrize(
+        ("code", "message", "expected"),
+        [
+            ("COULDNT_CONNECT", "Failed to connect", "ConnectionError"),
+            ("OPERATION_TIMEDOUT", "Operation timed out after 30000 milliseconds", "Timeout"),
+            ("RECV_ERROR", "CONNECT tunnel failed, response 502", "ProxyError"),
+            ("SSL_CONNECT_ERROR", "TLS connect error", "SSLError"),
+            ("HTTP2", "HTTP/2 stream was not closed cleanly", "HTTPError"),
+        ],
+    )
+    def test_a_transport_failure_is_retried(self, tmp_path, code, message, expected):
+        """Through curl_cffi's own error conversion, which attaches a Response
+        (status 0) even when no HTTP answer came back. Checking for a missing
+        response, as this used to, retried none of these."""
+        from unittest.mock import patch
 
-        fetcher, _ = self._fetcher(tmp_path, [200])
-        calls = []
-        real_get = fetcher.client.get
+        from curl_cffi import Curl, CurlECode, CurlError
 
-        def flaky(url, params=None, proxy=None):
-            calls.append(url)
-            if len(calls) == 1:
-                raise CurlConnectionError("connect failed")
-            return real_get(url, params=params, proxy=proxy)
+        from mallscape_scrape.fetch import Fetcher
 
-        fetcher.client.get = flaky
-        assert self._request(fetcher) == "{}"
-        assert len(calls) == 2
+        fetcher = Fetcher(tmp_path, rate=1000)
+        failure = CurlError(message, getattr(CurlECode, code))
+        with (
+            patch.object(Curl, "perform", side_effect=[failure] * 4) as perform,
+            pytest.raises(Exception) as caught,
+        ):
+            self._request(fetcher)
+        assert type(caught.value).__name__ == expected
+        assert caught.value.response is not None
+        assert perform.call_count == 4
+
+    def test_a_timeout_after_the_headers_is_still_retried(self):
+        """Starmall's timeouts arrived mid-body, with a 200 already parsed."""
+        from curl_cffi.requests.exceptions import Timeout
+
+        from mallscape_scrape.fetch import _retryable
+
+        assert _retryable(Timeout("timed out with 20306 bytes received", 28, self.FakeResponse(200)))
+
+    def test_a_bad_url_is_not_retried(self, tmp_path):
+        from unittest.mock import patch
+
+        from curl_cffi import Curl, CurlECode, CurlError
+        from curl_cffi.requests.exceptions import InvalidURL
+
+        from mallscape_scrape.fetch import Fetcher
+
+        fetcher = Fetcher(tmp_path, rate=1000)
+        with (
+            patch.object(Curl, "perform", side_effect=CurlError("bad", CurlECode.URL_MALFORMAT)) as perform,
+            pytest.raises(InvalidURL),
+        ):
+            self._request(fetcher)
+        assert perform.call_count == 1
+
+    def test_a_proxied_fetcher_opens_a_new_connection_per_request(self, tmp_path):
+        """The rotating proxy picks an exit IP per connection, and curl reuses
+        an HTTPS tunnel: measured 2026-10-24, one session sent every request
+        out of one IP, so a refused request was retried from the same one."""
+        from curl_cffi import CurlOpt
+
+        from mallscape_scrape.fetch import Fetcher
+
+        proxied = Fetcher(tmp_path / "p", rate=1000, proxy="http://u:p@rotate:80")
+        direct = Fetcher(tmp_path / "d", rate=1000)
+        assert proxied.client.curl_options == {CurlOpt.FRESH_CONNECT: 1, CurlOpt.FORBID_REUSE: 1}
+        assert direct.client.curl_options == {}
 
 
 class TestProxyRedaction:
@@ -1562,3 +1643,16 @@ class TestProxyRedaction:
         monkeypatch.setattr(config, "PROXY_URL", "")
         text = "HTTPError: 403 for https://www.smsupermalls.com/tenants?page=2"
         assert redact(text) == text
+
+    @pytest.mark.parametrize(
+        "url", ["http://proxy-user:private/pass@p.example:80", "http://proxy-user:pri[vate@p.example:80"]
+    )
+    def test_a_malformed_proxy_url_is_redacted_whole_and_never_raises(self, monkeypatch, url):
+        """An unescaped "/" parses to no userinfo, and "[" makes urlsplit
+        raise. curl quotes such a URL verbatim ("Unsupported proxy syntax")."""
+        from mallscape_core import config
+        from mallscape_scrape.fetch import redact
+
+        monkeypatch.setattr(config, "PROXY_URL", url)
+        out = redact(f"RequestException: Unsupported proxy syntax in '{url}'")
+        assert url not in out and "private" not in out and "pri[vate" not in out, out

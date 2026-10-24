@@ -314,7 +314,8 @@ def test_check_fails_on_a_chain_carried_forward(snapshot):
     from mallscape_scrape import validate
 
     health = validate.health(
-        "2026-01-02", MALLS, STORES, failed_chains={}, carried={"ayala"}, failed_malls={}, alerts={}
+        "2026-01-02", MALLS, STORES, chains=["sm", "ayala"], failed_chains={}, carried={"ayala"},
+        failed_malls={}, alerts={},
     )
     assert health["problems"] == [
         "ayala: listings collapsed against the previous snapshot; its rows were carried forward"
@@ -338,3 +339,85 @@ def test_check_fails_when_the_scrape_never_finished(tmp_path, monkeypatch):
     assert result.exit_code == 1
     assert "no health record for 2026-05-05" in result.output
     assert not (tmp_path / "snapshots" / "2026-05-05").exists()
+
+
+def test_a_rerun_that_dies_leaves_no_clean_record_behind(snapshot, monkeypatch):
+    """Otherwise `check` vouches for the earlier, clean attempt."""
+    from mallscape_scrape import pipeline as scrape_stage
+
+    assert _scrape_ayala(monkeypatch, _fake_ayala())
+    down = _fake("sm", {}, raises=RuntimeError("down"))
+    monkeypatch.setattr(scrape_stage, "SCRAPERS", {"sm": down, "ayala": _fake_ayala(raises=RuntimeError("down"))})
+    with pytest.raises(SystemExit, match="every chain failed"):
+        scrape_stage.run(["sm", "ayala"], "2026-01-02", rate=1000)
+    assert not scrape_stage.check("2026-01-02")
+
+
+def test_a_one_chain_run_says_which_chains_it_did_not_check(snapshot, monkeypatch, capsys):
+    from mallscape_scrape import pipeline as scrape_stage
+
+    monkeypatch.setattr(scrape_stage, "SCRAPERS", {"sm": object, "ayala": _fake_ayala()})
+    scrape_stage.run(["ayala"], "2026-01-02", rate=1000)
+    assert scrape_stage.check("2026-01-02")
+    assert "not scraped in this run, so not checked: ['sm']" in capsys.readouterr().out
+    health = storage.DATA_DIR / "snapshots" / "2026-01-02" / storage.SCRAPE / "health.json"
+    assert json.loads(health.read_text())["chains"] == ["ayala"]
+
+
+def test_an_alert_the_live_retry_answered_does_not_fail_the_check():
+    """An empty mall is re-asked against the live site. When that answer has
+    tenants, the empty attempt's alert ("served none") was superseded: it
+    stays a warning but is no longer a problem."""
+    import contextlib
+
+    from mallscape_core.models import Mall, Store
+    from mallscape_scrape.scrapers.base import MallChainScraper
+
+    class Flaky(MallChainScraper):
+        chain = "sm"
+        attempts = 0
+
+        def discover_malls(self):
+            return [Mall(chain="sm", mall_id="sm-a", mall_name="SM A")]
+
+        def scrape_mall(self, mall):
+            Flaky.attempts += 1
+            if Flaky.attempts == 1:
+                self.alert("sm-a: API reports 1 tenants but served none")
+                return []
+            return [Store(chain="sm", mall_id="sm-a", store_name_raw="JOLLIBEE")]
+
+    class Fetcher:
+        def bypass_cache(self):
+            return contextlib.nullcontext()
+
+    scraper = Flaky(Fetcher())
+    _, stores = scraper.scrape_all()
+    assert len(stores) == 1
+    assert scraper.alerts == []
+    assert any("served none" in w for w in scraper.warnings)
+
+
+def test_an_unreadable_fisher_mall_floor_list_is_an_alert():
+    """The floor tabs are the roster check: falling back to the hardcoded
+    floors still publishes, but a new floor would go unseen."""
+    from curl_cffi.requests.exceptions import HTTPError
+
+    from mallscape_scrape.scrapers.fishermall import FishermallScraper
+
+    class Fetcher:
+        def __init__(self, page):
+            self.page = page
+
+        def get_text(self, url, params=None):
+            if self.page is None:
+                raise HTTPError("HTTP Error 403")
+            return self.page
+
+    unreadable = FishermallScraper(Fetcher(None))
+    unreadable.discover_malls()
+    assert any("could not read floor tabs" in a for a in unreadable.alerts)
+    redesigned = FishermallScraper(Fetcher("<html><body>new layout</body></html>"))
+    redesigned.discover_malls()
+    assert any("no floor tabs found" in a for a in redesigned.alerts)
+

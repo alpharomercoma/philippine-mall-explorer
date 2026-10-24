@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 import pandas as pd
 
@@ -25,6 +26,9 @@ def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd
     failed_chains: dict[str, str] = {}
     failed_malls: dict[str, dict[str, str]] = {}
     alerts: dict[str, list[str]] = {}
+    # A rerun that dies before writing its own record must not leave an
+    # earlier attempt's clean one behind for `check` to vouch for.
+    health_path(run_date).unlink(missing_ok=True)
 
     # Seed from this date's snapshot if it exists, else carry the previous run
     # forward, so scraping one chain never drops the rest.
@@ -135,11 +139,16 @@ def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd
     # Everything in here is already redacted: warnings and failure reasons are
     # redacted where they are made. `mallscape check` reads this file.
     health = validate.health(
-        run_date, malls_df, stores_df, failed_chains=failed_chains, carried=carried,
-        failed_malls=failed_malls, alerts=alerts,
+        run_date, malls_df, stores_df, chains=chains, failed_chains=failed_chains,
+        carried=carried, failed_malls=failed_malls, alerts=alerts,
     )
     storage.write_text(run_date, storage.SCRAPE, "health.json", json.dumps(health, indent=2, ensure_ascii=False) + "\n")
     return malls_df, stores_df
+
+
+def health_path(run_date: str) -> Path:
+    # Not stage_dir(), which would create an empty snapshot for a bad date.
+    return storage.DATA_DIR / "snapshots" / run_date / storage.SCRAPE / "health.json"
 
 
 def check(run_date: str) -> bool:
@@ -149,8 +158,7 @@ def check(run_date: str) -> bool:
     when there is no record at all, because a scrape that never got as far as
     writing one is the loudest failure of the lot.
     """
-    # Not stage_dir(), which would create an empty snapshot for a bad date.
-    path = storage.DATA_DIR / "snapshots" / run_date / storage.SCRAPE / "health.json"
+    path = health_path(run_date)
     if not path.exists():
         print(f"- no health record for {run_date}: the scrape did not finish")
         return False

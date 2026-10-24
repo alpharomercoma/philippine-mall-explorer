@@ -60,8 +60,11 @@ class FishermallScraper(MallChainScraper):
                 page = self.fetcher.get_text(BASE + cfg["page"])
                 live = sorted({lvl for lvl, br in _LOADLEVEL.findall(page) if br == slug})
             except Exception as exc:
-                self.warn(f"{slug}: could not read floor tabs ({type(exc).__name__})")
-                live = []
+                self.alert(f"{slug}: could not read floor tabs ({type(exc).__name__})")
+                live = None
+            if live == []:
+                # the page loaded but held no tabs this parser recognises
+                self.alert(f"{slug}: no floor tabs found - markup may have changed")
             if live and set(live) != set(cfg["levels"]):
                 added = sorted(set(live) - set(cfg["levels"]))
                 removed = sorted(set(cfg["levels"]) - set(live))
