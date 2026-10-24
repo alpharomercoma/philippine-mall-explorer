@@ -76,7 +76,7 @@ class MegaworldScraper(MallChainScraper):
                 f"reaching the reported count ({total}); the API may be ignoring skip"
             )
         if total and len(out) != total:
-            self.warn(f"{content_type}: collected {len(out)} of {total} entries")
+            self.alert(f"{content_type}: collected {len(out)} of {total} entries")
         return out
 
     def discover_malls(self) -> list[Mall]:
@@ -107,7 +107,7 @@ class MegaworldScraper(MallChainScraper):
         known = {m.extra["uid"] for m in malls}
         orphans = sum(len(v) for k, v in self._by_mall_uid.items() if k not in known)
         if orphans:
-            self.warn(f"{orphans} tenants reference a mall uid not in the mall list")
+            self.alert(f"{orphans} tenants reference a mall uid not in the mall list")
         return sorted(malls, key=lambda m: m.mall_id)
 
     def scrape_mall(self, mall: Mall) -> list[Store]:

@@ -48,6 +48,51 @@ def with_property_type(malls: pd.DataFrame) -> pd.DataFrame:
     return malls
 
 
+def empty_properties(malls: pd.DataFrame, stores: pd.DataFrame) -> list[tuple[str, str, str, str]]:
+    """(property_type, chain, mall_id, mall_name) for every property with no tenants."""
+    counts = stores.groupby(["chain", "mall_id"]).size() if len(stores) else {}
+    return [
+        (row.property_type, row.chain, row.mall_id, row.mall_name)
+        for row in with_property_type(malls).itertuples()
+        if not counts.get((row.chain, row.mall_id), 0)
+    ]
+
+
+def unexplained_empty(
+    rows: list[tuple[str, str, str, str]], accounted: dict[str, dict]
+) -> list[tuple[str, str, str, str]]:
+    """The empty malls nobody has accounted for: a defect until proven otherwise."""
+    return sorted(r for r in rows if r[0] == "mall" and f"{r[1]}:{r[2]}" not in accounted)
+
+
+def diff_previous(
+    run_date: str, malls: pd.DataFrame, stores: pd.DataFrame
+) -> tuple[str | None, set[str], set[str], list[tuple[tuple[str, str], int, int, float]]]:
+    """Against the snapshot before this one: (its date, malls gone, malls new,
+    per-mall store-count drops beyond DROP_ALERT as (key, before, after, change))."""
+    prev_date = storage.previous_run(run_date)
+    gone: set[str] = set()
+    new: set[str] = set()
+    drops: list[tuple[tuple[str, str], int, int, float]] = []
+    if not prev_date:
+        return None, gone, new, drops
+    prev_malls = storage.read(prev_date, storage.SCRAPE, "malls")
+    prev_stores = storage.read(prev_date, storage.SCRAPE, "stores")
+    if prev_malls is not None:
+        gone = set(prev_malls["mall_id"]) - set(malls["mall_id"])
+        new = set(malls["mall_id"]) - set(prev_malls["mall_id"])
+    if prev_stores is not None:
+        cur = stores.groupby(["chain", "mall_id"]).size()
+        prev = prev_stores.groupby(["chain", "mall_id"]).size()
+        both = cur.index.intersection(prev.index)
+        delta = (cur[both] - prev[both]) / prev[both]
+        drops = [
+            (key, int(prev[key]), int(cur[key]), float(pct))
+            for key, pct in delta[delta < -DROP_ALERT].items()
+        ]
+    return prev_date, gone, new, drops
+
+
 def empty_section(
     malls: pd.DataFrame,
     stores: pd.DataFrame,
@@ -61,22 +106,15 @@ def empty_section(
     list, which is what this used to do, buries the first kind under the
     second.
     """
-    counts = stores.groupby(["chain", "mall_id"]).size() if len(stores) else {}
-    malls = with_property_type(malls)
-    lines: list[str] = []
-    rows = []
-    for row in malls.itertuples():
-        if counts.get((row.chain, row.mall_id), 0):
-            continue
-        rows.append((row.property_type, row.chain, row.mall_id, row.mall_name))
+    rows = empty_properties(malls, stores)
     if not rows:
         return ["", "## Properties with no tenants", "",
                 "- none: every property published at least one tenant", ""]
     accounted = known_empty()
-    lines += ["", "## Properties with no tenants", ""]
+    lines: list[str] = ["", "## Properties with no tenants", ""]
     malls_empty = sorted(r for r in rows if r[0] == "mall")
     other_empty = sorted(r for r in rows if r[0] != "mall")
-    unexplained = [r for r in malls_empty if f"{r[1]}:{r[2]}" not in accounted]
+    unexplained = unexplained_empty(rows, accounted)
     explained = [r for r in malls_empty if f"{r[1]}:{r[2]}" in accounted]
     if unexplained:
         # The whole point of the split. A mall nobody has accounted for is a
@@ -169,28 +207,18 @@ def build_report(
     lines += empty_section(malls, stores, confirmed_empty or set())
     lines += thin_section(malls, stores)
 
-    prev_date = storage.previous_run(run_date)
+    prev_date, gone, new, drops = diff_previous(run_date, malls, stores)
     if prev_date:
         lines.append(f"\n## Diff vs {prev_date}")
-        prev_stores = storage.read(prev_date, storage.SCRAPE, "stores")
-        prev_malls = storage.read(prev_date, storage.SCRAPE, "malls")
-        if prev_malls is not None:
-            gone = set(prev_malls["mall_id"]) - set(malls["mall_id"])
-            new = set(malls["mall_id"]) - set(prev_malls["mall_id"])
-            if gone:
-                lines.append(f"- ⚠ malls disappeared: {sorted(gone)}")
-            if new:
-                lines.append(f"- malls added: {sorted(new)}")
-        if prev_stores is not None:
-            cur = stores.groupby(["chain", "mall_id"]).size()
-            prev = prev_stores.groupby(["chain", "mall_id"]).size()
-            both = cur.index.intersection(prev.index)
-            delta = (cur[both] - prev[both]) / prev[both]
-            drops = delta[delta < -DROP_ALERT]
-            if not drops.empty:
+        if gone:
+            lines.append(f"- ⚠ malls disappeared: {sorted(gone)}")
+        if new:
+            lines.append(f"- malls added: {sorted(new)}")
+        if storage.read(prev_date, storage.SCRAPE, "stores") is not None:
+            if drops:
                 lines.append(f"- ⚠ store-count drops >{DROP_ALERT:.0%} (possible redesign):")
-                for mall_key, pct in drops.items():
-                    lines.append(f"  - {mall_key}: {prev[mall_key]} → {cur[mall_key]} ({pct:+.0%})")
+                for mall_key, before, after, pct in drops:
+                    lines.append(f"  - {mall_key}: {before} → {after} ({pct:+.0%})")
             else:
                 lines.append("- no anomalous store-count drops")
     else:
@@ -202,3 +230,51 @@ def build_report(
 
     report = "\n".join(lines) + "\n"
     return report
+
+
+def health(
+    run_date: str,
+    malls: pd.DataFrame,
+    stores: pd.DataFrame,
+    *,
+    failed_chains: dict[str, str],
+    carried: set[str],
+    failed_malls: dict[str, dict[str, str]],
+    alerts: dict[str, list[str]],
+) -> dict:
+    """What the weekly check fails on, kept apart from the report's prose.
+
+    `problems` are the defects someone has to act on: a chain that raised, a
+    chain carried forward because its listings collapsed, a mall whose scrape
+    raised, a scraper alert (the operator's site drifted), and a mall with no
+    tenants that nobody has accounted for. Every one of them still lets a
+    monthly run publish, which is why they need a check that fails instead.
+
+    `notices` are worth reading but are not defects: a mall delisted or a
+    directory shrinking is usually the operator's real portfolio, and it would
+    stay "failed" every week until the next snapshot moved the baseline.
+    """
+    problems = [f"{chain}: scrape failed entirely ({reason})" for chain, reason in sorted(failed_chains.items())]
+    problems += [
+        f"{chain}: listings collapsed against the previous snapshot; its rows were carried forward"
+        for chain in sorted(carried - set(failed_chains))
+    ]
+    for chain in sorted(failed_malls):
+        problems += [f"{chain}: {msg}" for msg in failed_malls[chain].values()]
+    for chain in sorted(alerts):
+        problems += [f"{chain}: {msg}" for msg in alerts[chain]]
+    # A mall whose scrape raised is already named above; it is empty because
+    # it failed, not because the operator published nothing.
+    raised = {(chain, mall_id) for chain, malls_failed in failed_malls.items() for mall_id in malls_failed}
+    problems += [
+        f"{chain}:{mall_id} ({name}) published no tenants and is not in {EMPTY_DIRECTORIES.name}"
+        for _, chain, mall_id, name in unexplained_empty(empty_properties(malls, stores), known_empty())
+        if (chain, mall_id) not in raised
+    ]
+    prev_date, gone, _, drops = diff_previous(run_date, malls, stores)
+    notices = [f"malls no longer listed since {prev_date}: {sorted(gone)}"] if gone else []
+    notices += [
+        f"{chain}:{mall_id}: {before} → {after} tenants since {prev_date} ({pct:+.0%})"
+        for (chain, mall_id), before, after, pct in drops
+    ]
+    return {"run_date": run_date, "problems": problems, "notices": notices}

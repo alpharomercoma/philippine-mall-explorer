@@ -66,7 +66,7 @@ class OrtigasScraper(MallChainScraper):
                 )
             )
         if not malls:
-            self.warn("no malls in props.malls")
+            self.alert("no malls in props.malls")
         return malls
 
     def _category_names(self, props: dict) -> dict[str, str]:
@@ -84,7 +84,7 @@ class OrtigasScraper(MallChainScraper):
             if key and label:
                 names[key] = label.lower()
         if not names:
-            self.warn("props.categories is empty - category ids cannot be resolved")
+            self.alert("props.categories is empty - category ids cannot be resolved")
         return names
 
     def scrape_mall(self, mall: Mall) -> list[Store]:
@@ -92,7 +92,7 @@ class OrtigasScraper(MallChainScraper):
         categories = self._category_names(props)
         selected = props.get("selectedMall") or {}
         if str(selected.get("id")) != str(mall.extra["id"]):
-            self.warn(
+            self.alert(
                 f"{mall.mall_id}: asked for id {mall.extra['id']} but got "
                 f"{selected.get('slug')} - selection param may have changed"
             )
@@ -109,7 +109,7 @@ class OrtigasScraper(MallChainScraper):
                     continue
                 type_id = _text(record.get("type"))
                 if type_id and type_id not in categories:
-                    self.warn(
+                    self.alert(
                         f"{mall.mall_id}: category id {type_id!r} is not in "
                         f"props.categories - the lookup changed"
                     )

@@ -173,6 +173,23 @@ and `MALLSCAPE_ACCEPT_COLLAPSE` keeps a real shrink for one run. And a mall
 that returns zero tenants is re-asked against the live site before being
 believed.
 
+### The weekly check
+
+Those guards keep a bad month off the site, but they also keep it green: a
+chain carried forward, or a mall that failed, still publishes. So
+`.github/workflows/check.yml` runs everything the monthly run does, every
+Monday at 06:17 Manila time, and publishes nothing. It fails loudly when the
+scrape, the build or the tests fail, and when `mallscape check` finds a chain
+or mall whose scrape raised, a chain carried forward, a scraper alert (the
+operator's roster or markup drifted), or an empty mall that
+`registry/empty_directories.json` does not account for. A failing run opens
+an issue labelled `weekly-check`, or comments on the open one, and the next
+passing run closes it. Delisted malls and shrinking directories are listed in
+the run summary without failing it, since they are usually the operator's
+real portfolio.
+
+Run the same check locally with `uv run mallscape scrape && uv run mallscape check`.
+
 The page says which snapshot it was built from, and its footer links the CSV,
 Parquet and JSON for exactly that snapshot, so downstream consumers can pin a
 month and reprocess it.

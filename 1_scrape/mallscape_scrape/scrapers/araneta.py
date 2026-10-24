@@ -121,17 +121,17 @@ class AranetaScraper(MallChainScraper):
         try:
             html = self.fetcher.get_text(f"{BASE}/malls")
         except Exception as exc:
-            self.warn(f"could not verify mall roster ({type(exc).__name__})")
+            self.alert(f"could not verify mall roster ({type(exc).__name__})")
             return
         live = set(re.findall(r'href="/shopping\?building=([a-z0-9-]+)"', html))
         if not live:
-            self.warn("roster check found no /shopping?building= links on /malls - markup may have changed")
+            self.alert("roster check found no /shopping?building= links on /malls - markup may have changed")
             return
         new, gone = sorted(live - set(MALLS)), sorted(set(MALLS) - live)
         if new:
-            self.warn(f"NEW Araneta mall(s) on /malls not scraped: {new} - add to MALLS in araneta.py")
+            self.alert(f"NEW Araneta mall(s) on /malls not scraped: {new} - add to MALLS in araneta.py")
         if gone:
-            self.warn(f"mall(s) no longer on /malls: {gone} - slug renamed or mall delisted")
+            self.alert(f"mall(s) no longer on /malls: {gone} - slug renamed or mall delisted")
 
     def scrape_mall(self, mall: Mall) -> list[Store]:
         slug, building = mall.extra["slug"], mall.extra["building"]
@@ -181,5 +181,5 @@ class AranetaScraper(MallChainScraper):
             else:
                 raise FetchError(f"{mall.mall_id}: /{directory} ran past {MAX_PAGES} pages")
         if not stores:
-            self.warn(f"{mall.mall_id}: no est-card tenants found - markup may have changed")
+            self.alert(f"{mall.mall_id}: no est-card tenants found - markup may have changed")
         return stores

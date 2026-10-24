@@ -7,6 +7,7 @@ the other chains.
 
 from __future__ import annotations
 
+import json
 import os
 
 import pandas as pd
@@ -21,6 +22,9 @@ from mallscape_scrape.registry_of_scrapers import SCRAPERS
 def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd.DataFrame]:
     all_malls, all_stores, warnings = [], [], []
     confirmed_empty: set[tuple[str, str]] = set()
+    failed_chains: dict[str, str] = {}
+    failed_malls: dict[str, dict[str, str]] = {}
+    alerts: dict[str, list[str]] = {}
 
     # Seed from this date's snapshot if it exists, else carry the previous run
     # forward, so scraping one chain never drops the rest.
@@ -58,6 +62,7 @@ def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd
                 "expecting the previous snapshot's rows to be carried forward"
             )
             print(f"[{name}] FAILED: {reason}")
+            failed_chains[name] = reason
             continue
         finally:
             fetcher.close()
@@ -69,6 +74,10 @@ def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd
         all_malls.extend(m.to_row() for m in malls)
         all_stores.extend(s.to_row() for s in stores)
         warnings.extend(scraper.warnings)
+        if scraper.failed:
+            failed_malls[name] = scraper.failed
+        if scraper.alerts:
+            alerts[name] = scraper.alerts
         confirmed_empty.update((name, mall_id) for mall_id in scraper.confirmed_empty)
     if not succeeded:
         raise SystemExit(
@@ -123,7 +132,39 @@ def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd
     report = validate.build_report(run_date, malls_df, stores_df, warnings, confirmed_empty)
     storage.write_text(run_date, storage.SCRAPE, "run_report.md", report)
     print("\n" + report)
+    # Everything in here is already redacted: warnings and failure reasons are
+    # redacted where they are made. `mallscape check` reads this file.
+    health = validate.health(
+        run_date, malls_df, stores_df, failed_chains=failed_chains, carried=carried,
+        failed_malls=failed_malls, alerts=alerts,
+    )
+    storage.write_text(run_date, storage.SCRAPE, "health.json", json.dumps(health, indent=2, ensure_ascii=False) + "\n")
     return malls_df, stores_df
+
+
+def check(run_date: str) -> bool:
+    """Print what the scrape for `run_date` found that someone has to act on.
+
+    Reads the health record `run` writes; False when it holds problems, or
+    when there is no record at all, because a scrape that never got as far as
+    writing one is the loudest failure of the lot.
+    """
+    # Not stage_dir(), which would create an empty snapshot for a bad date.
+    path = storage.DATA_DIR / "snapshots" / run_date / storage.SCRAPE / "health.json"
+    if not path.exists():
+        print(f"- no health record for {run_date}: the scrape did not finish")
+        return False
+    health = json.loads(path.read_text())
+    problems, notices = health["problems"], health["notices"]
+    if problems:
+        print(f"{len(problems)} problem(s) in the {run_date} scrape:\n")
+        print("\n".join(f"- {p}" for p in problems))
+    else:
+        print(f"No problems in the {run_date} scrape.")
+    if notices:
+        print("\nWorth a look, not failing the check:\n")
+        print("\n".join(f"- {n}" for n in notices))
+    return not problems
 
 
 def reconcile_collapse(

@@ -88,7 +88,7 @@ class WaltermartScraper(MallChainScraper):
                 source_url=f"{BASE}/malls/{slug}/",
             )
         if not malls:
-            self.warn("no malls parsed from /malls/ - page structure may have changed")
+            self.alert("no malls parsed from /malls/ - page structure may have changed")
 
         # The branches API names every mall a store is in, including malls the
         # /malls/ roster page does not link (Altaraza, 2026-08). Those carry
@@ -132,7 +132,7 @@ class WaltermartScraper(MallChainScraper):
             if sid and name:
                 names.setdefault(sid, name)
         if not names:
-            self.warn("/stores/ held no store anchors - page structure may have changed")
+            self.alert("/stores/ held no store anchors - page structure may have changed")
 
         category: dict[str, str] = {}
         for cat in CATEGORIES:
@@ -142,7 +142,7 @@ class WaltermartScraper(MallChainScraper):
                     if sid:
                         category.setdefault(sid, cat.replace("-", " "))
             except Exception as exc:
-                self.warn(f"/stores/{cat}/: {type(exc).__name__}")
+                self.alert(f"/stores/{cat}/: {type(exc).__name__}")
 
         index: dict[str, list[Store]] = {}
         meta: dict[str, dict] = {}
@@ -189,7 +189,7 @@ class WaltermartScraper(MallChainScraper):
                 "partial chain."
             )
         if failed:
-            self.warn(f"{failed} of {len(names)} store branch lookups failed - counts are low")
+            self.alert(f"{failed} of {len(names)} store branch lookups failed - counts are low")
         self._index = index
         self._mall_meta = meta
         return index
@@ -218,7 +218,7 @@ class WaltermartScraper(MallChainScraper):
             try:
                 html = self.fetcher.get_text(f"{BASE}/malls/{mall.mall_id}/{cat}")
             except Exception as exc:
-                self.warn(f"{mall.mall_id}/{cat}: {type(exc).__name__}")
+                self.alert(f"{mall.mall_id}/{cat}: {type(exc).__name__}")
                 continue
             for node in HTMLParser(html).css("a.wm-store"):
                 attrs = node.attributes

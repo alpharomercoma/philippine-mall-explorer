@@ -112,7 +112,7 @@ class SMScraper(MallChainScraper):
             for record in self._mall_pages(region):
                 mall = by_code.get(record["mall_code"])
                 if mall is None:
-                    self.warn(f"mall {record['mall_code']} in region={region} missing from region=all")
+                    self.alert(f"mall {record['mall_code']} in region={region} missing from region=all")
                 else:
                     mall.region = region
         untagged = [m.mall_id for m in by_code.values() if m.region is None]
@@ -197,9 +197,9 @@ class SMScraper(MallChainScraper):
         if expected:
             shortfall = (expected - len(stores)) / expected
             if not stores:
-                self.warn(f"{mall.mall_id}: API reports {expected} tenants but served none")
+                self.alert(f"{mall.mall_id}: API reports {expected} tenants but served none")
             elif shortfall > 0.20:
-                self.warn(
+                self.alert(
                     f"{mall.mall_id}: only {len(stores)} of {expected} reported "
                     f"tenants served ({shortfall:.0%} short) - investigate"
                 )

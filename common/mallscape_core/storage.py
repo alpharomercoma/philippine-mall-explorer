@@ -5,7 +5,7 @@ Layout::
     data/
       cache/<date>/<chain>/     stage 1 HTTP cache (scratch, not committed)
       snapshots/<date>/
-        1_scrape/               malls, stores, run_report.md
+        1_scrape/               malls, stores, run_report.md, health.json
         2_clean/                stores_clean, category_mapping
         3_report/               brand_*, mall_summary, breakdown.md
         4_website/              bundle.json

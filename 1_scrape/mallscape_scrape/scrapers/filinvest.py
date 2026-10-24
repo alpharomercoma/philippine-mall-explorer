@@ -58,25 +58,25 @@ class FilinvestScraper(MallChainScraper):
         try:
             html = self.fetcher.get_text(f"{BASE}festival-mall/")
         except Exception as exc:
-            self.warn(f"could not verify mall roster ({type(exc).__name__})")
+            self.alert(f"could not verify mall roster ({type(exc).__name__})")
             return
         live = set(re.findall(r'href="[^"]*shops-directory/([a-z0-9-]+)/"', html))
         if not live:
-            self.warn("mall roster check found no nav links - site markup may have changed")
+            self.alert("mall roster check found no nav links - site markup may have changed")
             return
         new = sorted(live - set(MALLS))
         gone = sorted(set(MALLS) - live)
         if new:
-            self.warn(f"NEW mall(s) on the site not in MALLS: {new} - add them to filinvest.py")
+            self.alert(f"NEW mall(s) on the site not in MALLS: {new} - add them to filinvest.py")
         if gone:
-            self.warn(f"mall(s) in MALLS no longer linked on the site: {gone}")
+            self.alert(f"mall(s) in MALLS no longer linked on the site: {gone}")
 
     def scrape_mall(self, mall: Mall) -> list[Store]:
         html = self.fetcher.get_text(f"{BASE}{mall.mall_id}/")
         tree = HTMLParser(html)
         table = tree.css_first("#result table") or tree.css_first("table")
         if table is None:
-            self.warn(f"{mall.mall_id}: no directory table found")
+            self.alert(f"{mall.mall_id}: no directory table found")
             return []
 
         stores: list[Store] = []

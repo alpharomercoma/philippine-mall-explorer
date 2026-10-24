@@ -78,7 +78,7 @@ class AyalaScraper(MallChainScraper):
             self._bulk_counts[slug] = self._bulk_counts.get(slug, 0) + 1
         unknown = set(self._bulk_counts) - {m.mall_id for m in malls}
         if unknown:
-            self.warn(f"stores reference malls missing from /malls: {sorted(unknown)}")
+            self.alert(f"stores reference malls missing from /malls: {sorted(unknown)}")
 
         coverage.report_gaps(self, {m.mall_name for m in malls})
         return sorted(malls, key=lambda m: m.mall_id)
@@ -100,7 +100,7 @@ class AyalaScraper(MallChainScraper):
         ]
         expected = self._bulk_counts.get(mall.mall_id)
         if expected is not None and len(rows) != expected:
-            self.warn(
+            self.alert(
                 f"{mall.mall_id}: per-mall list has {len(rows)} stores but the "
                 f"chain-wide list has {expected}"
             )

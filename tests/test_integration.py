@@ -185,6 +185,7 @@ def test_partial_scrape_does_not_drop_other_chains(snapshot, monkeypatch):
         def __init__(self, fetcher):
             self.warnings = []
             self.confirmed_empty = []
+            self.failed, self.alerts = {}, []
 
         def scrape_all(self):
             from mallscape_core.models import Mall, Store
@@ -236,3 +237,104 @@ def test_asset_urls_carry_a_version_that_tracks_their_contents(snapshot, tmp_pat
     website_stage.run(snapshot)
     after = re.search(r'data-assets="([0-9a-f]{8})"', (site / "index.html").read_text())
     assert after and after.group(1) != before
+
+
+def _fake(chain, malls, *, failed=None, alerts=(), raises=None):
+    """A stand-in scraper: `malls` maps each mall_id to its tenant names."""
+    from mallscape_core.models import Mall, Store
+
+    class FakeScraper:
+        extra_headers: ClassVar[dict] = {}
+
+        def __init__(self, fetcher):
+            self.chain = chain
+            self.warnings = [*(failed or {}).values(), *alerts]
+            self.confirmed_empty = []
+            self.failed, self.alerts = dict(failed or {}), list(alerts)
+
+        def scrape_all(self):
+            if raises:
+                raise raises
+            return (
+                [Mall(chain=chain, mall_id=m, mall_name=m.upper()) for m in malls],
+                [Store(chain=chain, mall_id=m, store_name_raw=n) for m, names in malls.items() for n in names],
+            )
+
+    return FakeScraper
+
+
+def _fake_ayala(*, stores=("NEW",), mall_id="ay-a", **kw):
+    return _fake("ayala", {mall_id: stores}, **kw)
+
+
+def _scrape_ayala(monkeypatch, scraper) -> bool:
+    """Scrape SM (healthy, as in the fixture) and the given Ayala, then check.
+    Two chains, because a run where every chain raises writes nothing at all."""
+    from mallscape_scrape import pipeline as scrape_stage
+
+    sm = _fake("sm", {"sm-a": ("JOLLIBEE", "WATSONS"), "sm-b": ("JOLLIBEE",)})
+    monkeypatch.setattr(scrape_stage, "SCRAPERS", {"sm": sm, "ayala": scraper})
+    scrape_stage.run(["sm", "ayala"], "2026-01-02", rate=1000)
+    return scrape_stage.check("2026-01-02")
+
+
+def _problems() -> list[str]:
+    health = storage.DATA_DIR / "snapshots" / "2026-01-02" / storage.SCRAPE / "health.json"
+    return json.loads(health.read_text())["problems"]
+
+
+def test_check_passes_a_clean_scrape(snapshot, monkeypatch):
+    assert _scrape_ayala(monkeypatch, _fake_ayala())
+    assert _problems() == []
+
+
+@pytest.mark.parametrize(
+    ("scraper", "expected"),
+    [
+        (_fake_ayala(raises=RuntimeError("site down")), "ayala: scrape failed entirely (RuntimeError: site down)"),
+        (
+            _fake_ayala(stores=(), failed={"ay-a": "FAILED ay-a: HTTPError: HTTP Error 404"}),
+            "ayala: FAILED ay-a: HTTPError: HTTP Error 404",
+        ),
+        (_fake_ayala(alerts=["NEW mall(s) on the site not in MALLS: ['ay-b']"]), "ayala: NEW mall(s)"),
+        (_fake_ayala(stores=()), "ayala:ay-a (AY-A) published no tenants and is not in empty_directories.json"),
+    ],
+    ids=["chain-raised", "mall-raised", "site-drift", "unexplained-empty"],
+)
+def test_check_fails_loudly_on_what_a_monthly_run_publishes_through(snapshot, monkeypatch, scraper, expected):
+    """Each of these lets `scrape` exit 0 and the monthly run publish; the
+    check is what refuses them. Exactly one problem each: a mall that raised
+    is not also reported as an unexplained empty mall."""
+    assert not _scrape_ayala(monkeypatch, scraper)
+    problems = _problems()
+    assert len(problems) == 1 and problems[0].startswith(expected), problems
+
+
+def test_check_fails_on_a_chain_carried_forward(snapshot):
+    from mallscape_scrape import validate
+
+    health = validate.health(
+        "2026-01-02", MALLS, STORES, failed_chains={}, carried={"ayala"}, failed_malls={}, alerts={}
+    )
+    assert health["problems"] == [
+        "ayala: listings collapsed against the previous snapshot; its rows were carried forward"
+    ]
+
+
+def test_check_lists_a_delisted_mall_without_failing(snapshot, monkeypatch, capsys):
+    """A mall leaving the operator's list is usually the real portfolio, and
+    would fail every week until the next snapshot; it is shown, not failed."""
+    assert _scrape_ayala(monkeypatch, _fake_ayala(mall_id="ay-b"))
+    assert "malls no longer listed since 2026-01-01: ['ay-a']" in capsys.readouterr().out
+
+
+def test_check_fails_when_the_scrape_never_finished(tmp_path, monkeypatch):
+    from typer.testing import CliRunner
+
+    from mallscape.cli import app
+
+    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    result = CliRunner().invoke(app, ["check", "--date", "2026-05-05"])
+    assert result.exit_code == 1
+    assert "no health record for 2026-05-05" in result.output
+    assert not (tmp_path / "snapshots" / "2026-05-05").exists()

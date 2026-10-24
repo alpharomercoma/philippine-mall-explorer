@@ -29,6 +29,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 def scraper():
     s = RobinsonsScraper.__new__(RobinsonsScraper)
     s.warnings = []
+    s.alerts, s.failed = [], {}
     return s
 
 
@@ -181,6 +182,7 @@ class TestFilinvestParser:
     def test_festival_mall_full_table(self):
         s = FilinvestScraper.__new__(FilinvestScraper)
         s.warnings = []
+        s.alerts, s.failed = [], {}
         mall = Mall(chain="filinvest", mall_id="festival-mall", mall_name="Festival Mall")
         html = (FIXTURES / "fil-festival.html").read_text()
         stores = s.scrape_mall.__wrapped__(s, mall, html) if hasattr(
@@ -209,6 +211,7 @@ class TestStarmallParser:
 
         s = StarmallScraper.__new__(StarmallScraper)
         s.warnings = []
+        s.alerts, s.failed = [], {}
         s.fetcher = Mock()
         s.fetcher.get_text.return_value = (FIXTURES / "starmall-alabang.html").read_text()
         mall = Mall(chain="starmall", mall_id="alabang", mall_name="Starmall Alabang")
@@ -266,6 +269,7 @@ class TestWaltermartIndex:
 
         s = WaltermartScraper.__new__(WaltermartScraper)
         s.warnings = []
+        s.alerts, s.failed = [], {}
         s.fetcher = self.FakeFetcher()
         return s
 
@@ -387,6 +391,7 @@ class TestAranetaDirectories:
 
         s = AranetaScraper.__new__(AranetaScraper)
         s.warnings = []
+        s.alerts, s.failed = [], {}
         s.fetcher = fetcher or self.FakeFetcher()
         return s
 
@@ -453,7 +458,8 @@ class TestAranetaDirectories:
         roster += '<a href="/shopping?building=gateway-mall-3">Gateway Mall 3</a>'
         s.fetcher.get_text = lambda url, params=None: roster
         s.discover_malls()
-        assert any("gateway-mall-3" in w for w in s.warnings)
+        # an alert, not just a warning: the weekly check fails on it
+        assert any("gateway-mall-3" in a for a in s.alerts)
 
 
 class TestSnapshotIntegrity:
