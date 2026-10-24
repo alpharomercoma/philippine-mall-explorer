@@ -875,8 +875,8 @@ def verify_placements(fetcher: Fetcher, malls: pd.DataFrame) -> tuple[list[str],
             continue
         address = text_of(row.get("address"))
         if address is None:
-            # Nothing to check the pin against. Most WalterMart branches arrive
-            # with no address at all, and flagging every one of them as
+            # Nothing to check the pin against. A few properties arrive with
+            # no address at all, and flagging every one of them as
             # unexplained would bury the pins that are genuinely wrong.
             continue
         if not supported(address, here, place_only=True):

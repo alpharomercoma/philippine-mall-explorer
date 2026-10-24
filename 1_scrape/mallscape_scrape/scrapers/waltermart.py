@@ -52,6 +52,11 @@ REGION_HEADINGS = {
 }
 
 
+def _address_of(branch: dict) -> str | None:
+    address = re.sub(r"\s+", " ", str(branch.get("address") or "")).strip(" ,.")
+    return address or None
+
+
 class WaltermartScraper(MallChainScraper):
     chain = "waltermart"
 
@@ -96,6 +101,10 @@ class WaltermartScraper(MallChainScraper):
         self._store_index()
         for slug, meta in sorted(self._mall_meta.items()):
             if slug in malls:
+                # The roster page carries no address; the branches API does,
+                # for every mall. Without it the geocoder had only the name to
+                # go on and `geocode --verify` nothing to check a pin against.
+                malls[slug].address = _address_of(meta)
                 continue
             self.warn(f"mall {slug!r} exists only in the branches API - not on /malls/")
             name = re.sub(r"\s+", " ", str(meta.get("name") or slug.replace("-", " ").title()))
@@ -104,7 +113,7 @@ class WaltermartScraper(MallChainScraper):
                 mall_id=slug,
                 mall_name=f"WalterMart {name}" if not name.lower().startswith("walter") else name,
                 region=None,
-                address=str(meta.get("address")) if meta.get("address") else None,
+                address=_address_of(meta),
                 source_url=f"{BASE}/malls/{slug}/",
             )
         return sorted(malls.values(), key=lambda m: m.mall_id)
@@ -203,6 +212,10 @@ class WaltermartScraper(MallChainScraper):
         malls the store index does not mention."""
         page = self.fetcher.get_text(f"{BASE}/malls/{mall.mall_id}/")
         tree = HTMLParser(page)
+        # A mall no store claims is absent from the branches API, so this page
+        # is the only place its address is published.
+        if mall.address is None and (node := tree.css_first("#wm-mall-address")):
+            mall.address = _address_of({"address": node.text()})
 
         # "View All" links name exactly the categories this mall has
         categories = []

@@ -294,6 +294,33 @@ class TestWaltermartIndex:
         assert len(s.fetcher.calls) == n
         assert [x.store_name_raw for x in sucat] == ["Chatime"]
 
+    def test_every_mall_takes_its_address_from_the_branch_api(self):
+        """The /malls/ roster links each mall with no address, and the scraper
+        once recorded none for all 47, so four branches could not be geocoded
+        and no WalterMart pin could be verified. The branches API it already
+        calls carries the address for every mall."""
+        s = self.make()
+
+        def get_json(url, **kw):
+            s.fetcher.calls.append(url)
+            return [
+                {"slug": "the-junction", "address": " Quirino Highway,  Brgy. Talipapa, Novaliches, Quezon City "},
+                {"slug": "altaraza", "address": "Altaraza Town Center, San Jose del Monte, Bulacan"},
+                {"slug": "silang", "address": ""},
+            ]
+
+        def get_text(url, **kw):
+            if url.endswith("/malls/"):
+                return '<h2>Metro Manila</h2><a href="the-junction">The Junction</a><a href="silang">Silang</a>'
+            return type(s.fetcher).get_text(s.fetcher, url, **kw)
+
+        s.fetcher.get_json, s.fetcher.get_text = get_json, get_text
+        by_slug = {m.mall_id: m for m in s.discover_malls()}
+        assert by_slug["the-junction"].address == "Quirino Highway, Brgy. Talipapa, Novaliches, Quezon City"
+        assert by_slug["the-junction"].region == "metro-manila"
+        assert by_slug["altaraza"].address.startswith("Altaraza Town Center")   # API-only mall
+        assert by_slug["silang"].address is None                                # blank, not ""
+
     def test_a_mall_no_store_claims_is_rechecked_through_its_own_pages(self):
         s = self.make()
         calls = s.fetcher.calls
@@ -308,6 +335,21 @@ class TestWaltermartIndex:
         empty = s.scrape_mall(Mall(chain="waltermart", mall_id="silang", mall_name="X"))
         assert empty == []
         assert any("/malls/silang/" in c for c in calls)
+
+    def test_a_mall_no_store_claims_takes_its_address_from_its_own_page(self):
+        s = self.make()
+
+        def get_text(url, **kw):
+            if url.endswith("/malls/naic/"):
+                return '<address id="wm-mall-address">Antero Soriano Hwy., Naic, Cavite</address>'
+            if "/malls/naic/" in url:
+                return ""
+            return type(s.fetcher).get_text(s.fetcher, url, **kw)
+
+        s.fetcher.get_text = get_text
+        naic = Mall(chain="waltermart", mall_id="naic", mall_name="N")
+        s.scrape_mall(naic)
+        assert naic.address == "Antero Soriano Hwy., Naic, Cavite"
 
 
 class TestCollapseReconcile:
