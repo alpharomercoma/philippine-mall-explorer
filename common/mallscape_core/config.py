@@ -103,7 +103,19 @@ SITE_REPO_URL: str = _str(
 # Both services are free and need no key. Both ask for an identifying
 # User-Agent and, in Nominatim's case, at most one request per second. Those
 # are the terms we are using them under, so they are the defaults.
-OVERPASS_URL: str = _str("MALLSCAPE_OVERPASS_URL", "https://overpass-api.de/api/interpreter")
+# Overpass is tried in this order and the first full answer wins. The public
+# servers are run by volunteers and often at capacity: on 2026-10-24 the main
+# one refused every query for hours while maps.mail.ru answered in 86 s. One
+# endpoint is a single point of failure for every run that geocodes.
+OVERPASS_URLS: tuple[str, ...] = tuple(
+    u.strip()
+    for u in _str(
+        "MALLSCAPE_OVERPASS_URLS",
+        "https://overpass-api.de/api/interpreter,"
+        "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+    ).split(",")
+    if u.strip()
+)
 NOMINATIM_URL: str = _str("MALLSCAPE_NOMINATIM_URL", "https://nominatim.openstreetmap.org/search")
 # The same service read the other way round: what is at this coordinate. Used
 # only by `mallscape geocode --verify`, which is how a pin in the sea is found.

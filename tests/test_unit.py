@@ -856,6 +856,73 @@ class TestGeocoding:
         assert (ortigas.lat, ortigas.lon) == (14.60, 121.04)
 
 
+class TestOverpassFallback:
+    """On 2026-10-24 overpass-api.de refused every query for hours ("at
+    capacity, the request queue is full") and the geocode step, with one
+    endpoint and nowhere else to go, failed the whole weekly check."""
+
+    PRIMARY, MIRROR = "https://primary.test/api/interpreter", "https://mirror.test/api/interpreter"
+    ANSWER: ClassVar[dict] = {"elements": [
+        {"type": "way", "id": 1, "center": {"lat": 14.4452, "lon": 120.9504},
+         "tags": {"name": "SM City Bacoor"}},
+    ]}
+
+    class FakeFetcher:
+        """Answers per URL: a dict is returned, an exception is raised."""
+
+        def __init__(self, answers):
+            self.answers = answers
+            self.asked: list[str] = []
+
+        def get_json(self, url, params=None):
+            self.asked.append(url)
+            answer = self.answers[url]
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+    @pytest.fixture(autouse=True)
+    def _two_endpoints(self, monkeypatch):
+        monkeypatch.setattr(geocode.config, "OVERPASS_URLS", (self.PRIMARY, self.MIRROR))
+
+    def test_an_unreachable_primary_falls_through_to_the_mirror(self):
+        from curl_cffi.requests.exceptions import ConnectionError as CurlConnectionError
+
+        fetcher = self.FakeFetcher({
+            self.PRIMARY: CurlConnectionError("Failed to connect after 135002 ms"),
+            self.MIRROR: self.ANSWER,
+        })
+        features, source = geocode.fetch_osm_features(fetcher)
+        assert source == self.MIRROR
+        assert [f["id"] for f in features] == ["way/1"]
+
+    def test_a_primary_that_answers_does_not_touch_the_mirror(self):
+        fetcher = self.FakeFetcher({self.PRIMARY: self.ANSWER, self.MIRROR: RuntimeError("asked")})
+        _, source = geocode.fetch_osm_features(fetcher)
+        assert (source, fetcher.asked) == (self.PRIMARY, [self.PRIMARY])
+
+    def test_a_query_the_server_gave_up_on_is_not_an_answer(self):
+        """Overpass reports a timed-out query as a 200 with a remark and, often,
+        no elements. Accepting it would place nothing and look like success."""
+        gave_up = {"elements": [], "remark": "runtime error: Query timed out in \"query\""}
+        fetcher = self.FakeFetcher({self.PRIMARY: gave_up, self.MIRROR: self.ANSWER})
+        _, source = geocode.fetch_osm_features(fetcher)
+        assert source == self.MIRROR
+
+    def test_every_endpoint_failing_stops_the_run_and_names_each(self):
+        from mallscape_scrape.fetch import FetchError
+
+        fetcher = self.FakeFetcher({
+            self.PRIMARY: FetchError("Non-JSON response: at capacity"),
+            self.MIRROR: {"elements": []},
+        })
+        with pytest.raises(SystemExit) as stopped:
+            geocode.fetch_osm_features(fetcher)
+        message = str(stopped.value)
+        assert self.PRIMARY in message and "at capacity" in message
+        assert self.MIRROR in message and "0 features" in message
+
+
 class TestNominatimQueries:
     """Two defects in the Nominatim tier, both found by reading what the
     service actually returned rather than what the code assumed it would."""

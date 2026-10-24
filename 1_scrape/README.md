@@ -52,7 +52,8 @@ network, so the map is reproducible and a scrape works offline.
 `uv run mallscape geocode` is the only thing that changes that file. It resolves
 whatever the registry cannot answer, using one Overpass query for every named
 retail feature in the country, then Nominatim at one request per second for the
-remainder. `geocode.py` explains the matching rules; the short version is that a
+remainder. The Overpass query goes to each endpoint in `MALLSCAPE_OVERPASS_URLS`
+in turn until one answers, because the public servers are often at capacity. `geocode.py` explains the matching rules; the short version is that a
 candidate needs either an exact name or agreement between its name and the
 region we already hold, because our region test is coarse enough to disagree
 with a correct pin near a boundary.

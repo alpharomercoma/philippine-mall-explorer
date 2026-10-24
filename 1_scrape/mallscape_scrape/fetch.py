@@ -19,6 +19,7 @@ import time
 import urllib.parse
 from pathlib import Path
 
+import certifi
 from curl_cffi import CurlOpt
 from curl_cffi import requests as curl
 from curl_cffi.requests.exceptions import (
@@ -130,6 +131,12 @@ class Fetcher:
             },
             timeout=timeout,
             allow_redirects=True,
+            # Left alone, curl_cffi trusts whatever bundle the OS ships, so a
+            # server is reachable on one machine and not another: macOS's
+            # /etc/ssl/cert.pem lacks the HARICA root maps.mail.ru chains to,
+            # which certifi has. The locked certifi makes trust the same
+            # everywhere the lockfile is.
+            verify=certifi.where(),
             # A rotating proxy picks its exit IP per connection, and curl keeps
             # an HTTPS tunnel open across requests: measured 2026-10-24, one
             # session sent every request out of one IP. A new connection per
