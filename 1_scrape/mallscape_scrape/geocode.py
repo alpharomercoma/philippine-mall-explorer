@@ -47,13 +47,15 @@ import json
 import math
 import re
 import unicodedata
+import urllib.parse
 from pathlib import Path
 
 import pandas as pd
+from curl_cffi.requests.exceptions import RequestException
 
 from mallscape_core import config
 from mallscape_core.geo import derive_region, in_bounds
-from mallscape_scrape.fetch import Fetcher
+from mallscape_scrape.fetch import Fetcher, FetchError, redact
 
 REGISTRY = Path(__file__).parent / "registry" / "mall_coordinates.json"
 SCHEMA_VERSION = 1
@@ -354,10 +356,36 @@ def best_match(
 # --------------------------------------------------------------------------
 
 
-def fetch_osm_features(fetcher: Fetcher) -> list[dict]:
-    """Every named retail feature in the Philippines, from one Overpass call."""
+def fetch_osm_features(fetcher: Fetcher) -> tuple[list[dict], str]:
+    """Every named retail feature in the Philippines, from one Overpass call,
+    and the endpoint that answered.
+
+    Each endpoint in ``config.OVERPASS_URLS`` gets the fetcher's full retries
+    before the next is tried. An answer with no features, or with a runtime
+    error in its remark, counts as a failure: Overpass reports a query it gave
+    up on as a 200, and an empty map is not an answer.
+    """
     query = _OVERPASS_QUERY.format(timeout=int(config.GEOCODE_OVERPASS_TIMEOUT))
-    payload = fetcher.get_json(config.OVERPASS_URL, {"data": query})
+    failures = []
+    for url in config.OVERPASS_URLS:
+        try:
+            payload = fetcher.get_json(url, {"data": query})
+        except (RequestException, FetchError) as exc:
+            failures.append(f"{url}: {redact(str(exc))[:200]}")
+            continue
+        features = _features_of(payload)
+        remark = str(payload.get("remark") or "")
+        if features and "error" not in remark.lower():
+            return features, url
+        failures.append(f"{url}: {len(features)} features{f' ({remark[:200]})' if remark else ''}")
+    raise SystemExit(
+        "No Overpass endpoint returned retail features:\n  " + "\n  ".join(failures)
+        + "\nIf every one is down, rerun later; if they all answer empty, the query "
+        "changed meaning. Do not ship an empty map."
+    )
+
+
+def _features_of(payload: dict) -> list[dict]:
     features = []
     for element in payload.get("elements", []):
         tags = element.get("tags") or {}
@@ -378,11 +406,6 @@ def fetch_osm_features(fetcher: Fetcher) -> list[dict]:
             "lat": float(lat),
             "lon": float(lon),
         })
-    if not features:
-        raise SystemExit(
-            f"Overpass returned no retail features from {config.OVERPASS_URL}. "
-            f"The query or the endpoint changed; fix it rather than shipping an empty map."
-        )
     return features
 
 
@@ -697,8 +720,11 @@ def refresh(malls: pd.DataFrame, cache_dir: Path) -> tuple[dict[str, dict], str]
         headers={"User-Agent": config.GEOCODER_USER_AGENT},
     )
     try:
-        features = fetch_osm_features(osm)
-        lines.append(f"[geocode] {len(features):,} OSM retail features in scope")
+        features, source = fetch_osm_features(osm)
+        lines.append(
+            f"[geocode] {len(features):,} OSM retail features in scope, "
+            f"from {urllib.parse.urlparse(source).netloc}"
+        )
         unmatched = []
         proposed = []
         for row in todo:

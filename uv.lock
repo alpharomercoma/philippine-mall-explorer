@@ -236,6 +236,7 @@ name = "mallscape"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "certifi" },
     { name = "curl-cffi" },
     { name = "pandas" },
     { name = "pyarrow" },
@@ -253,6 +254,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "certifi", specifier = ">=2026.10.19" },
     { name = "curl-cffi", specifier = ">=0.16.3" },
     { name = "pandas", specifier = ">=3.0.5" },
     { name = "pyarrow", specifier = ">=25.0.0" },

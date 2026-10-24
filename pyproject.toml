@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "certifi>=2026.10.19",
     "curl-cffi>=0.16.3",
     "pandas>=3.0.5",
     "pyarrow>=25.0.0",
