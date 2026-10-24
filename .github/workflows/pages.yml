@@ -37,7 +37,7 @@ jobs:
           test -f "4_website/site/$bundle" || { echo "index.html references $bundle which is not committed"; exit 1; }
           echo "bundle present: $bundle"
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: 4_website/site
       - id: deployment
