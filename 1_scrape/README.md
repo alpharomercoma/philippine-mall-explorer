@@ -14,6 +14,13 @@
 
 Run it with `uv run mallscape scrape`, or one chain with `--chain sm`.
 
+CI runs the same thing in two steps, so each chain gets a job of its own:
+`mallscape scrape-part --chain sm` writes that chain's result to
+`data/parts/<date>/sm.json` (exiting 1 if the chain failed outright), and
+`mallscape assemble` builds the snapshot from every chain's part. A chain with
+no part counts as a chain that failed. `mallscape scrape` is those two steps
+in sequence, so a local run and a CI run produce the same snapshot.
+
 ## What this stage promises
 
 Store names are recorded **verbatim**. No case folding, no trimming beyond

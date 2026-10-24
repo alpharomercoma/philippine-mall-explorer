@@ -1,0 +1,443 @@
+# The whole pipeline, as parallel jobs. Called by the monthly rescrape, which
+# publishes, and by the weekly check, which runs the same jobs without
+# publishing, so a green weekly check is a rehearsal of the monthly run.
+#
+#   plan ─┬─ scrape (one job per chain) ── assemble ── geocode ── build ── e2e ─┬─ publish ── deploy
+#         └─ lint (ruff, unit and integration tests) ─────────────────────────────┘
+#   summary: after everything, whatever failed
+#
+# - plan fixes the run date and the commit once, so jobs that start either
+#   side of midnight UTC, or after main moved, still build one snapshot from
+#   one commit. It lists the chains from the scraper registry, so a new chain
+#   gets its own job without an edit here.
+# - Each chain's job writes a part (`mallscape scrape-part`); assemble combines
+#   them into the snapshot, its run report and its health record
+#   (`mallscape assemble`). A chain that fails is a red job of its own and the
+#   others are unaffected: the assembly carries it forward from the previous
+#   snapshot, exactly as a single sequential run would.
+# - build records its output as a git patch, so e2e tests and publish commits
+#   exactly that tree, deletions included (the site build drops superseded
+#   bundles).
+# - When publishing, build waits for geocoding to succeed, because the
+#   coordinates it resolves are part of what is published. When only
+#   checking, it builds either way, so an unreachable geocoder does not hide
+#   whether the site still builds and passes its tests.
+# - Nothing is committed or deployed unless lint and e2e both pass: a bad
+#   month publishes nothing and the site keeps serving the last good one.
+name: Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      publish:
+        description: Commit the snapshot to main and deploy the site
+        type: boolean
+        required: true
+      accept_collapse:
+        description: Chains whose listing collapse is real this run (see rescrape.yml)
+        type: string
+        default: ""
+    secrets:
+      WEBSHARE_PROXY_URL:
+        required: false
+
+permissions: {}
+
+env:
+  # A tighter retry budget than the local default (8 attempts, 300s max).
+  # From a runner a 403 is usually a WAF that blocks cloud IP ranges
+  # outright, where fifteen minutes of backoff per request buys nothing.
+  MALLSCAPE_RETRY_ATTEMPTS: 4
+  MALLSCAPE_RETRY_MAX_WAIT: 60
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      date: ${{ steps.plan.outputs.date }}
+      sha: ${{ steps.plan.outputs.sha }}
+      chains: ${{ steps.plan.outputs.chains }}
+    steps:
+      # A publishing run commits data and deploys, so it always builds main,
+      # even when dispatched from another branch.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.publish && 'main' || github.sha }}
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - id: plan
+        run: |
+          {
+            echo "date=$(date -u +%F)"
+            echo "sha=$(git rev-parse HEAD)"
+            echo "chains=$(uv run mallscape chains)"
+          } >> "$GITHUB_OUTPUT"
+
+  lint:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run pytest tests/test_unit.py tests/test_integration.py -q
+
+  scrape:
+    name: scrape (${{ matrix.chain }})
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.chains) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      # Twice, with a 10 minute pause. Responses are cached on disk for the
+      # life of the job, so the second attempt refetches only what failed.
+      - name: Scrape ${{ matrix.chain }}
+        env:
+          CHAIN: ${{ matrix.chain }}
+          RUN_DATE: ${{ needs.plan.outputs.date }}
+          # Only in the jobs of the chains that need it (SM: its WAF refuses
+          # runner IPs whatever the client). It carries the proxy account's token.
+          MALLSCAPE_PROXY_URL: ${{ matrix.proxy && secrets.WEBSHARE_PROXY_URL || '' }}
+        run: |
+          for attempt in 1 2; do
+            uv run mallscape scrape-part --chain "$CHAIN" --date "$RUN_DATE" && break
+            if [ "$attempt" = 2 ]; then exit 1; fi
+            echo "scrape failed; retrying in 10 minutes against the cache"
+            sleep 600
+          done
+      # Also when the chain failed: its part says why, which the assembly
+      # reports. Redacted where it is made, like every warning.
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: part-${{ matrix.chain }}
+          path: data/parts/${{ needs.plan.outputs.date }}/${{ matrix.chain }}.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  assemble:
+    needs: [plan, scrape]
+    # A failed chain is still assembled around; only a cancelled run is not.
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      healthy: ${{ steps.health.outcome == 'success' }}
+    env:
+      RUN_DATE: ${{ needs.plan.outputs.date }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: part-*
+          path: data/parts/${{ needs.plan.outputs.date }}
+          merge-multiple: true
+      - name: Assemble the snapshot
+        env:
+          MALLSCAPE_ACCEPT_COLLAPSE: ${{ inputs.accept_collapse }}
+        run: uv run mallscape assemble --date "$RUN_DATE"
+      # Never fails the job: a publishing run publishes through what this
+      # finds, and the summary is what fails a check on it.
+      - name: Check what the scrape found
+        id: health
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          uv run mallscape check --date "$RUN_DATE" | tee check.md
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: scraped
+          path: |
+            data/snapshots/${{ needs.plan.outputs.date }}/1_scrape/
+            check.md
+          if-no-files-found: ignore
+          retention-days: 30
+
+  geocode:
+    needs: [plan, assemble]
+    if: ${{ !cancelled() && needs.assemble.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      RUN_DATE: ${{ needs.plan.outputs.date }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - uses: actions/download-artifact@v8
+        with:
+          name: scraped
+      # `--verify` is one reverse lookup per property against OpenStreetMap:
+      # fine before a monthly publish, rude every week.
+      - name: Geocode new properties
+        env:
+          VERIFY: ${{ inputs.publish }}
+        run: |
+          uv run mallscape geocode --date "$RUN_DATE"
+          if [ "$VERIFY" = true ]; then uv run mallscape geocode --date "$RUN_DATE" --verify; fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: geocoded
+          path: |
+            data/snapshots/${{ needs.plan.outputs.date }}/1_scrape/malls.*
+            1_scrape/mallscape_scrape/registry/mall_coordinates.json
+          retention-days: 7
+
+  build:
+    needs: [plan, assemble, geocode]
+    if: ${{ !cancelled() && needs.assemble.result == 'success' && (needs.geocode.result == 'success' || !inputs.publish) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      RUN_DATE: ${{ needs.plan.outputs.date }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - uses: actions/download-artifact@v8
+        with:
+          name: scraped
+      - if: ${{ needs.geocode.result == 'success' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: geocoded
+      - name: Clean, report, build the site
+        run: |
+          uv run mallscape clean --date "$RUN_DATE"
+          uv run mallscape report --date "$RUN_DATE"
+          uv run mallscape website --date "$RUN_DATE"
+      - name: Record what the build changed
+        run: |
+          git add -A data/snapshots 4_website/site 1_scrape/mallscape_scrape/registry
+          git diff --cached --binary > build.patch
+          git diff --cached --stat | tail -1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: built
+          path: build.patch
+          retention-days: 7
+
+  e2e:
+    needs: [plan, build]
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+        with:
+          enable-cache: true
+      - name: Install dependencies and the browser
+        run: |
+          uv sync --locked
+          uv run playwright install --with-deps chromium
+      - uses: actions/download-artifact@v8
+        with:
+          name: built
+      - run: if [ -s build.patch ]; then git apply build.patch; fi
+      - run: uv run pytest tests/test_e2e.py -q
+
+  publish:
+    needs: [plan, lint, e2e]
+    if: ${{ !cancelled() && inputs.publish && needs.lint.result == 'success' && needs.e2e.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      # main as it is now, not as it was at plan: the patch touches only data
+      # and the built site, so it lands on top of whatever merged meanwhile,
+      # and a conflict fails here rather than publishing a mix.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/download-artifact@v8
+        with:
+          name: built
+          path: ${{ runner.temp }}
+      - name: Commit the new snapshot
+        env:
+          PATCH: ${{ runner.temp }}/build.patch
+          RUN_DATE: ${{ needs.plan.outputs.date }}
+        run: |
+          if [ -s "$PATCH" ]; then git apply --index "$PATCH"; fi
+          if git diff --cached --quiet; then
+            echo "nothing changed since the last snapshot; not committing"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "snapshot $RUN_DATE via scheduled rescrape"
+            git push origin HEAD:main
+          fi
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: 4_website/site
+
+  # Its own job so a deploy failure is distinguishable from a data failure,
+  # and because deploy-pages wants the github-pages environment.
+  deploy:
+    needs: publish
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v6
+      - id: deployment
+        uses: actions/deploy-pages@v5
+
+  summary:
+    needs: [plan, lint, scrape, assemble, geocode, build, e2e, publish, deploy]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+    env:
+      PUBLISH: ${{ inputs.publish }}
+      RUN_DATE: ${{ needs.plan.outputs.date }}
+      HEALTHY: ${{ needs.assemble.outputs.healthy }}
+      PLAN: ${{ needs.plan.result }}
+      LINT: ${{ needs.lint.result }}
+      SCRAPE: ${{ needs.scrape.result }}
+      ASSEMBLE: ${{ needs.assemble.result }}
+      GEOCODE: ${{ needs.geocode.result }}
+      BUILD: ${{ needs.build.result }}
+      E2E: ${{ needs.e2e.result }}
+      PUBLISHED: ${{ needs.publish.result }}
+      DEPLOY: ${{ needs.deploy.result }}
+    steps:
+      - uses: actions/download-artifact@v8
+        continue-on-error: true  # absent when assembly never ran
+        with:
+          name: scraped
+          path: scraped
+
+      - name: Summarise
+        run: |
+          check="failure"; [ "$HEALTHY" = true ] && check="success"
+          [ "$ASSEMBLE" = success ] || check="not run"
+          {
+            echo "## $([ "$PUBLISH" = true ] && echo "Monthly rescrape" || echo "Weekly check"), ${RUN_DATE:-not started}"
+            echo
+            echo "| job | result |"
+            echo "|---|---|"
+            echo "| plan | $PLAN |"
+            echo "| lint and unit tests | $LINT |"
+            echo "| scrape (every chain's job) | $SCRAPE |"
+            echo "| assemble | $ASSEMBLE |"
+            echo "| check what it found | $check |"
+            echo "| geocode | $GEOCODE |"
+            echo "| build | $BUILD |"
+            echo "| end-to-end tests | $E2E |"
+            if [ "$PUBLISH" = true ]; then
+              echo "| publish | $PUBLISHED |"
+              echo "| deploy | $DEPLOY |"
+            fi
+            echo
+            cat scraped/check.md 2>/dev/null || echo "_The check never ran._"
+            echo
+            echo "[Run log, run report and the job for each chain]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
+          } > body.md
+          cat body.md >> "$GITHUB_STEP_SUMMARY"
+
+      # The weekly check's issue: opened or commented on when it fails, closed
+      # by the first run that passes. Only from main: a dispatch from a branch
+      # is testing that branch, not main's health.
+      - name: Open, update or close the weekly-check issue
+        id: verdict
+        if: ${{ !inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ON_MAIN: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          ok=true
+          for result in "$PLAN" "$LINT" "$SCRAPE" "$ASSEMBLE" "$GEOCODE" "$BUILD" "$E2E"; do
+            [ "$result" = success ] || ok=false
+          done
+          [ "$HEALTHY" = true ] || ok=false
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+          [ "$ON_MAIN" = true ] || exit 0
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          open=$(gh issue list --label weekly-check --state open --json number --jq '.[0].number // empty')
+          if $ok; then
+            if [ -n "$open" ]; then gh issue close "$open" --comment "Passing again: $run_url"; fi
+          else
+            gh label create weekly-check --force --color B60205 \
+              --description "Opened and closed by the weekly check"
+            if [ -n "$open" ]; then
+              gh issue comment "$open" --body-file body.md
+            else
+              gh issue create --title "Weekly check failing" --label weekly-check --body-file body.md
+            fi
+          fi
+
+      # A publishing run is red when one of its jobs is, and publishes through
+      # what the check finds; the weekly check fails on all of it.
+      - name: Fail loudly
+        if: ${{ !inputs.publish && steps.verdict.outputs.ok != 'true' }}
+        run: |
+          echo "::error title=Weekly check failed::plan: $PLAN, lint: $LINT, scrape: $SCRAPE, assemble: $ASSEMBLE, check: $([ "$HEALTHY" = true ] && echo success || echo failure), geocode: $GEOCODE, build: $BUILD, e2e: $E2E. The run summary and the weekly-check issue list every problem."
+          if [ -f scraped/check.md ]; then
+            grep '^- ' scraped/check.md | while IFS= read -r line; do
+              echo "::error title=Weekly check::${line#- }"
+            done
+          fi
+          exit 1

@@ -4,6 +4,7 @@ Layout::
 
     data/
       cache/<date>/<chain>/     stage 1 HTTP cache (scratch, not committed)
+      parts/<date>/<chain>.json one chain's scrape, before assembly (not committed)
       snapshots/<date>/
         1_scrape/               malls, stores, run_report.md, health.json
         2_clean/                stores_clean, category_mapping

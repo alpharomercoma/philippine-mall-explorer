@@ -8,27 +8,29 @@
 # snapshot commit is itself activity, so a green run keeps the schedule alive.
 #
 # Failure behavior, outermost to innermost:
-# - Each HTTP request retries 403/429/5xx with exponential backoff (8
-#   attempts, up to 300s) inside the scraper itself.
+# - Each HTTP request retries 403/429/5xx and transport failures with
+#   exponential backoff (4 attempts, up to 60s here) inside the scraper.
+# - Every chain is scraped in a job of its own (pipeline.yml), run twice with
+#   a 10 minute pause. Responses are cached on disk for the life of the job,
+#   so the second attempt refetches only what failed.
 # - A chain that fails outright, or whose listings collapse against the
 #   previous snapshot, keeps that snapshot's rows and is named in the run
-#   report with its original fetched date.
+#   report with its original fetched date. Its job is red; the month still
+#   publishes.
 # - Two operators wall off GitHub's runners (verified live 2026-10-13).
 #   WalterMart and Araneta sit behind Cloudflare, whose bot check passes the
 #   browser TLS fingerprint the fetcher presents. SM's AWS WAF refuses the
-#   runner IP range whatever the client, so SM goes out through the rotating
-#   residential proxy in the WEBSHARE_PROXY_URL secret: every request leaves
-#   from a new IP, and the odd 403 is retried from another. If the secret is
+#   runner IP range whatever the client, so SM's job goes out through the
+#   rotating residential proxy in the WEBSHARE_PROXY_URL secret, on a new
+#   connection, and so a new exit IP, for every request. If the secret is
 #   missing or the proxy is down, SM is carried forward like any other
 #   failed chain.
-# - The scrape step as a whole runs twice with a 10 minute pause. Responses
-#   are cached on disk for the life of the job, so the second attempt refetches
-#   only what failed, not the requests that succeeded.
-# - If any stage or check still fails, the job stops BEFORE the commit step:
-#   a bad month publishes nothing and the site keeps serving the last good
-#   snapshot. The failed run is visible (and emailed) via Actions.
-# - Everything above still lets a bad chain publish green. check.yml runs this
-#   same pipeline weekly without publishing and fails loudly on it instead.
+# - If geocoding, the build, lint or the tests fail, nothing is committed or
+#   deployed: a bad month publishes nothing and the site keeps serving the
+#   last good snapshot. The failed run is visible (and emailed) via Actions.
+# - A chain carried forward, a mall that failed or a scraper alert still
+#   publishes. check.yml runs this same pipeline weekly without publishing
+#   and fails loudly on those instead.
 name: Monthly rescrape
 
 on:
@@ -51,95 +53,16 @@ concurrency:
 
 jobs:
   rescrape:
-    runs-on: ubuntu-latest
-    timeout-minutes: 240
+    uses: ./.github/workflows/pipeline.yml
+    with:
+      publish: true
+      accept_collapse: ${{ inputs.accept_collapse }}
+    secrets:
+      WEBSHARE_PROXY_URL: ${{ secrets.WEBSHARE_PROXY_URL }}
+    # The ceiling for every job in the pipeline; each job asks only for what
+    # it uses (only publish writes contents, only deploy touches Pages).
     permissions:
       contents: write
-    env:
-      # The input value is a workflow-author-controlled enum-ish string, but it
-      # still goes through env rather than inline interpolation on principle.
-      MALLSCAPE_ACCEPT_COLLAPSE: ${{ inputs.accept_collapse }}
-      # A tighter retry budget than the local default (8 attempts, 300s max).
-      # From this runner a 403 is usually the WAFs that block cloud IP ranges
-      # outright, where fifteen minutes of backoff per request buys nothing
-      # and four blocked chains would eat the whole job timeout.
-      MALLSCAPE_RETRY_ATTEMPTS: 4
-      MALLSCAPE_RETRY_MAX_WAIT: 60
-    steps:
-      # Always main, even when dispatched from another branch: this workflow
-      # commits data and deploys, and must never do that from an unmerged ref.
-      - uses: actions/checkout@v7
-        with:
-          ref: main
-
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
-        with:
-          enable-cache: true
-
-      - name: Install dependencies and the end-to-end browser
-        run: |
-          uv sync --locked
-          uv run playwright install --with-deps chromium
-
-      - name: Scrape every operator
-        env:
-          # Scoped to this step: it carries the proxy account's token.
-          MALLSCAPE_PROXY_URL: ${{ secrets.WEBSHARE_PROXY_URL }}
-        run: |
-          for attempt in 1 2; do
-            uv run mallscape scrape && break
-            if [ "$attempt" = 2 ]; then exit 1; fi
-            echo "scrape failed; retrying in 10 minutes against the cache"
-            sleep 600
-          done
-
-      - name: Geocode new properties and verify every pin
-        run: |
-          uv run mallscape geocode
-          uv run mallscape geocode --verify
-
-      - name: Clean, report, build the site
-        run: |
-          uv run mallscape clean
-          uv run mallscape report
-          uv run mallscape website
-
-      - name: Validate before publishing anything
-        run: |
-          uv run ruff check .
-          uv run pytest tests/test_unit.py tests/test_integration.py -q
-          uv run pytest tests/test_e2e.py -q
-
-      - name: Commit the new snapshot
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/snapshots 4_website/site 1_scrape/mallscape_scrape/registry
-          if git diff --cached --quiet; then
-            echo "nothing changed since the last snapshot; not committing"
-          else
-            git commit -m "snapshot $(date -u +%Y-%m-%d) via scheduled rescrape"
-            # main may have moved during a multi-hour scrape; replay on top
-            git pull --rebase origin main
-            git push origin HEAD:main
-          fi
-
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: 4_website/site
-
-  # A separate job so a deploy failure is distinguishable from a data failure,
-  # and because deploy-pages wants the github-pages environment.
-  deploy:
-    needs: rescrape
-    runs-on: ubuntu-latest
-    permissions:
       pages: write
       id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/configure-pages@v6
-      - id: deployment
-        uses: actions/deploy-pages@v5
+      issues: write

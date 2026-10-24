@@ -3,6 +3,10 @@
 # record of what was scraped.
 data/cache/
 
+# One chain's scrape, handed from its CI job to the assembly. The snapshot
+# assembled from them is the record.
+data/parts/
+
 # Mirror of the newest snapshot, produced by any stage. Derived, not source.
 data/snapshots/latest/
 

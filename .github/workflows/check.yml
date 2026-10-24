@@ -1,32 +1,34 @@
 # Weekly check: run everything the monthly rescrape runs, against the live
 # operators, and fail loudly on anything someone has to act on. Nothing is
-# committed or deployed; the snapshot it builds dies with the runner.
+# committed or deployed; the snapshot it builds dies with the run.
 #
 # Why it exists: the monthly run is built to publish through trouble. A chain
 # that fails is carried forward from the previous snapshot, a mall that fails
-# is left out, and the run still goes green, so a broken operator can go
+# is left out, and the site still updates, so a broken operator can go
 # unnoticed for a month. This check turns each of those into a red run:
-# - the scrape, the build or the tests failing outright
+# - any job of the pipeline failing: a chain's scrape, the assembly,
+#   geocoding, the build, lint or the tests
 # - `mallscape check`: a chain or mall whose scrape raised, a chain carried
 #   forward, a scraper alert (roster or markup drift), or a mall with no
 #   tenants that registry/empty_directories.json does not account for
 #
+# Both runs are pipeline.yml, so this is the monthly run minus its last two
+# jobs (publish and deploy) and minus `geocode --verify` (one reverse lookup
+# per property against OpenStreetMap, fine monthly and rude weekly). SM goes
+# through the same rotating proxy, so a week costs about the same proxy
+# traffic as a month.
+#
 # A failing run on main opens an issue labelled weekly-check, or comments on
 # the open one, and the first passing run closes it. GitHub also emails the
 # failure to whoever last edited the cron line below.
-#
-# It skips `geocode --verify` (one reverse lookup per property against
-# OpenStreetMap, fine monthly and rude weekly). SM goes through the same
-# rotating proxy as the monthly run, so a week costs about the same proxy
-# traffic as a month.
 name: Weekly check
 
 on:
   schedule:
     # 18:17 on Monday, Philippine time (UTC+8). Chosen so it can never overlap
-    # the monthly rescrape, which starts 22:00 UTC on the 1st and is cut off
-    # four hours later: the two never put two full scrapes on the operators
-    # and the proxy at once.
+    # the monthly rescrape, which starts 22:00 UTC on the 1st and finishes
+    # within hours: the two never put two full scrapes on the operators and
+    # the proxy at once.
     - cron: "17 10 * * 1"
   workflow_dispatch:
 
@@ -41,140 +43,18 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
-    timeout-minutes: 150
+    uses: ./.github/workflows/pipeline.yml
+    with:
+      publish: false
+    secrets:
+      WEBSHARE_PROXY_URL: ${{ secrets.WEBSHARE_PROXY_URL }}
+    # The ceiling for every job in the pipeline. GitHub checks it against the
+    # permissions each job declares before the run starts, including the
+    # publish and deploy jobs that `publish: false` skips, so it has to admit
+    # theirs. No token here carries them: every job is issued only the
+    # permissions it declares, and those two jobs never run from here.
     permissions:
-      contents: read
+      contents: write
+      pages: write
+      id-token: write
       issues: write
-    env:
-      # Same retry budget as the monthly run, so this predicts what it would do.
-      MALLSCAPE_RETRY_ATTEMPTS: 4
-      MALLSCAPE_RETRY_MAX_WAIT: 60
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
-        with:
-          enable-cache: true
-
-      - name: Install dependencies and the end-to-end browser
-        run: |
-          uv sync --locked
-          uv run playwright install --with-deps chromium
-
-      # Fixed once: the scrape starts late on Sunday UTC and can finish on Monday.
-      - name: Fix the run date
-        run: echo "RUN_DATE=$(date -u +%F)" >> "$GITHUB_ENV"
-
-      - name: Scrape every operator
-        id: scrape
-        continue-on-error: true
-        env:
-          # Scoped to this step: it carries the proxy account's token.
-          MALLSCAPE_PROXY_URL: ${{ secrets.WEBSHARE_PROXY_URL }}
-        run: |
-          for attempt in 1 2; do
-            uv run mallscape scrape --date "$RUN_DATE" && break
-            if [ "$attempt" = 2 ]; then exit 1; fi
-            echo "scrape failed; retrying in 10 minutes against the cache"
-            sleep 600
-          done
-
-      - name: Check what the scrape found
-        id: health
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          uv run mallscape check --date "$RUN_DATE" | tee check.md
-
-      - name: Geocode new properties, clean, report, build the site
-        id: build
-        if: ${{ steps.scrape.outcome == 'success' }}
-        continue-on-error: true
-        run: |
-          uv run mallscape geocode --date "$RUN_DATE"
-          uv run mallscape clean --date "$RUN_DATE"
-          uv run mallscape report --date "$RUN_DATE"
-          uv run mallscape website --date "$RUN_DATE"
-
-      - name: Lint and test, including the built site
-        id: tests
-        if: ${{ steps.build.outcome == 'success' }}
-        continue-on-error: true
-        run: |
-          uv run ruff check .
-          uv run pytest tests/test_unit.py tests/test_integration.py -q
-          uv run pytest tests/test_e2e.py -q
-
-      - name: Keep the run report
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: weekly-check-${{ env.RUN_DATE }}
-          path: |
-            data/snapshots/${{ env.RUN_DATE }}/1_scrape/run_report.md
-            data/snapshots/${{ env.RUN_DATE }}/1_scrape/health.json
-          if-no-files-found: ignore
-          retention-days: 30
-
-      - name: Summarise, and open, update or close the weekly-check issue
-        if: ${{ !cancelled() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SCRAPE: ${{ steps.scrape.outcome }}
-          HEALTH: ${{ steps.health.outcome }}
-          BUILD: ${{ steps.build.outcome }}
-          TESTS: ${{ steps.tests.outcome }}
-          ON_MAIN: ${{ github.ref == 'refs/heads/main' }}
-        run: |
-          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-          ok=true
-          for outcome in "$SCRAPE" "$HEALTH" "$BUILD" "$TESTS"; do
-            [ "$outcome" = success ] || ok=false
-          done
-          {
-            echo "## Weekly check, ${RUN_DATE:-not started}"
-            echo
-            echo "| step | outcome |"
-            echo "|---|---|"
-            echo "| scrape every operator | ${SCRAPE:-not run} |"
-            echo "| check what it found | ${HEALTH:-not run} |"
-            echo "| build | ${BUILD:-not run} |"
-            echo "| lint and test | ${TESTS:-not run} |"
-            echo
-            cat check.md 2>/dev/null || echo "_The check never ran._"
-            echo
-            echo "[Run log and run report]($run_url)"
-          } > body.md
-          cat body.md >> "$GITHUB_STEP_SUMMARY"
-          # A dispatch from a branch is testing that branch, not main's health.
-          [ "$ON_MAIN" = true ] || exit 0
-          open=$(gh issue list --label weekly-check --state open --json number --jq '.[0].number // empty')
-          if $ok; then
-            if [ -n "$open" ]; then gh issue close "$open" --comment "Passing again: $run_url"; fi
-          else
-            gh label create weekly-check --force --color B60205 \
-              --description "Opened and closed by the weekly check"
-            if [ -n "$open" ]; then
-              gh issue comment "$open" --body-file body.md
-            else
-              gh issue create --title "Weekly check failing" --label weekly-check --body-file body.md
-            fi
-          fi
-
-      # failure() also catches the install, before any of the checks ran.
-      - name: Fail loudly
-        if: ${{ !cancelled() && (failure() || steps.scrape.outcome != 'success' || steps.health.outcome != 'success' || steps.build.outcome != 'success' || steps.tests.outcome != 'success') }}
-        env:
-          SCRAPE: ${{ steps.scrape.outcome }}
-          HEALTH: ${{ steps.health.outcome }}
-          BUILD: ${{ steps.build.outcome }}
-          TESTS: ${{ steps.tests.outcome }}
-        run: |
-          echo "::error title=Weekly check failed::scrape: ${SCRAPE:-not run}, check: ${HEALTH:-not run}, build: ${BUILD:-not run}, tests: ${TESTS:-not run}. The run summary and the weekly-check issue list every problem."
-          if [ -f check.md ]; then
-            grep '^- ' check.md | while IFS= read -r line; do
-              echo "::error title=Weekly check::${line#- }"
-            done
-          fi
-          exit 1
