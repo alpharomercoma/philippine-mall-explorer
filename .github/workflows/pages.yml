@@ -36,7 +36,7 @@ jobs:
           bundle=$(grep -o 'data-bundle="[^"]*"' 4_website/site/index.html | cut -d'"' -f2)
           test -f "4_website/site/$bundle" || { echo "index.html references $bundle which is not committed"; exit 1; }
           echo "bundle present: $bundle"
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
           path: 4_website/site
