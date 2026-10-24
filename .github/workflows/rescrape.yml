@@ -68,7 +68,7 @@ jobs:
     steps:
       # Always main, even when dispatched from another branch: this workflow
       # commits data and deploys, and must never do that from an unmerged ref.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: main
 

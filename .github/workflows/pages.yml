@@ -30,7 +30,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Fail if the page points at a missing bundle
         run: |
           bundle=$(grep -o 'data-bundle="[^"]*"' 4_website/site/index.html | cut -d'"' -f2)

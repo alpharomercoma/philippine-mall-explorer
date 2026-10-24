@@ -7,3 +7,9 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # One PR a month for all of them. Separately they hit Dependabot's limit of
+    # five open PRs, which silently held back the checkout bump, and bumps that
+    # touch neighbouring lines conflict with each other once one is merged.
+    groups:
+      actions:
+        patterns: ["*"]
