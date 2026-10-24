@@ -44,6 +44,18 @@ def scrape(
 
 
 @app.command()
+def check(date: str = typer.Option(None, help="snapshot date, default today")):
+    """Fail if the scrape found anything someone has to act on.
+
+    A chain or mall that failed, a chain carried forward, a scraper alert, or
+    an empty mall nobody has accounted for. `scrape` publishes through all of
+    these on purpose; this is the command that turns them into an exit code.
+    """
+    if not scrape_stage.check(date or storage.today()):
+        raise typer.Exit(1)
+
+
+@app.command()
 def geocode(
     date: str = typer.Option(None, help="snapshot date, default newest usable"),
     offline: bool = typer.Option(

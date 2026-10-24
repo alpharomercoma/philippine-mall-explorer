@@ -7,6 +7,7 @@
 | `malls.parquet` / `.csv` | one row per property |
 | `stores.parquet` / `.csv` | one row per store listing, exactly as published |
 | `run_report.md` | counts, diff against the previous snapshot, warnings |
+| `health.json` | what `mallscape check` fails on: failed chains and malls, carry-forwards, alerts, unexplained empty malls |
 
 `malls` carries `lat`, `lon`, `geo_source` and `geo_precision`. See
 "Coordinates" below for who owns them.
@@ -56,8 +57,12 @@ makes `place()` idempotent.
 ## The rule that keeps this stage honest
 
 **Silence must never mean success.** A scraper that cannot derive its mall list
-live verifies its hardcoded roster against the site on every run and warns on
-drift. A property the operator does not list at all is recorded in
+live verifies its hardcoded roster against the site on every run and alerts on
+drift. An alert (`self.alert()`) is a warning that someone has to act on: a
+roster change, a markup change, a partial collection. `mallscape check` fails
+on it, along with a chain or mall whose scrape raised, a chain carried
+forward, and an empty mall nobody has accounted for; plain `self.warn()` is
+for what is merely worth reading. A property the operator does not list at all is recorded in
 `registry/<chain>_coverage.json` so it stays explained instead of being
 re-investigated. Truncation is routed around where a route exists: WalterMart's
 per-mall pages cap at 10 tenants per category, so that scraper reads the

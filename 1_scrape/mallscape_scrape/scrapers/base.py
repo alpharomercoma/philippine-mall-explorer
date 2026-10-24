@@ -22,11 +22,23 @@ class MallChainScraper(ABC):
         # against the live site is a fact about the operator, while emptiness
         # seen once is only a fact about one request.
         self.confirmed_empty: list[str] = []
+        # Malls whose scrape raised, and warnings that mean the operator's
+        # site drifted under us (a roster change, a markup change, a partial
+        # collection). Both stay warnings in the run report; the weekly check
+        # fails on them, so they are kept as data rather than parsed back out
+        # of the warning text.
+        self.failed: dict[str, str] = {}  # mall_id -> the warning
+        self.alerts: list[str] = []
 
     def warn(self, msg: str) -> None:
         msg = redact(msg)  # warnings go into the committed run report
         self.warnings.append(msg)
         print(f"  [warn:{self.chain}] {msg}")
+
+    def alert(self, msg: str) -> None:
+        """A warning the weekly check fails on: something a person has to act on."""
+        self.warn(msg)
+        self.alerts.append(self.warnings[-1])
 
     @abstractmethod
     def discover_malls(self) -> list[Mall]: ...
@@ -72,4 +84,5 @@ class MallChainScraper(ABC):
             return self.scrape_mall(mall)
         except Exception as exc:
             self.warn(f"FAILED {mall.mall_id}: {type(exc).__name__}: {exc}")
+            self.failed[mall.mall_id] = self.warnings[-1]
             return None

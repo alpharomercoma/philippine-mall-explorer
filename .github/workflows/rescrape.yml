@@ -27,6 +27,8 @@
 # - If any stage or check still fails, the job stops BEFORE the commit step:
 #   a bad month publishes nothing and the site keeps serving the last good
 #   snapshot. The failed run is visible (and emailed) via Actions.
+# - Everything above still lets a bad chain publish green. check.yml runs this
+#   same pipeline weekly without publishing and fails loudly on it instead.
 name: Monthly rescrape
 
 on:

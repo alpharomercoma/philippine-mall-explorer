@@ -71,7 +71,7 @@ class RobinsonsScraper(MallChainScraper):
             r'data-drupal-selector="drupal-settings-json">(.*?)</script>', html, re.S
         )
         if not m:
-            self.warn("could not find drupal-settings-json on /mall-info")
+            self.alert("could not find drupal-settings-json on /mall-info")
             return {}
         settings = json.loads(m.group(1))
         roster = {}
@@ -97,7 +97,7 @@ class RobinsonsScraper(MallChainScraper):
                 "vmd_slug": slug,
             }
             registry.append(entry)
-            self.warn(
+            self.alert(
                 f"NEW mall on VMD not in registry: {slug} ({region}) - "
                 f"drupal_slug={entry['drupal_slug']} - add it to robinsons_malls.json"
             )
@@ -108,7 +108,7 @@ class RobinsonsScraper(MallChainScraper):
             key = _norm_key(name)
             # prefix match: the widget uses short names ("The Plaza", "Gen San")
             if not any(k.startswith(key) or key.startswith(k) for k in by_key):
-                self.warn(f"chat-widget mall not matched to registry: {name} ({region})")
+                self.alert(f"chat-widget mall not matched to registry: {name} ({region})")
 
         coverage.report_gaps(self, {e["name"] for e in registry})
 

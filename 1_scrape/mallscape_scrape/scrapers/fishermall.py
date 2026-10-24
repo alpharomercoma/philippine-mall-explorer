@@ -65,7 +65,7 @@ class FishermallScraper(MallChainScraper):
             if live and set(live) != set(cfg["levels"]):
                 added = sorted(set(live) - set(cfg["levels"]))
                 removed = sorted(set(cfg["levels"]) - set(live))
-                self.warn(f"{slug}: floor list changed (added={added} removed={removed})")
+                self.alert(f"{slug}: floor list changed (added={added} removed={removed})")
             malls.append(
                 Mall(
                     chain=self.chain,
@@ -88,7 +88,7 @@ class FishermallScraper(MallChainScraper):
                     {"level": level},
                 )
             except Exception as exc:
-                self.warn(f"{mall.mall_id}/{level}: {type(exc).__name__}")
+                self.alert(f"{mall.mall_id}/{level}: {type(exc).__name__}")
                 continue
             for raw in _NAME.findall(fragment):
                 name = re.sub(r"\s+", " ", htmllib.unescape(raw)).strip()
