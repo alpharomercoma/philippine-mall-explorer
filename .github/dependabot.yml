@@ -1,0 +1,9 @@
+# Third-party actions are pinned to commit SHAs (a tag can be moved to new
+# code; a SHA cannot). This keeps those pins current: Dependabot proposes the
+# new SHA with its version comment, and the Tests check runs on the PR.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
