@@ -421,3 +421,88 @@ def test_an_unreadable_fisher_mall_floor_list_is_an_alert():
     redesigned.discover_malls()
     assert any("no floor tabs found" in a for a in redesigned.alerts)
 
+
+
+def _ci_scrape(monkeypatch, scrapers: dict, *, skip=()) -> list[int]:
+    """Scrape the way CI does: one `scrape-part` per chain, then `assemble`.
+    Chains in `skip` never report, as when their job dies. Returns the
+    scrape-part exit codes."""
+    from typer.testing import CliRunner
+
+    from mallscape import cli
+    from mallscape_scrape import pipeline as scrape_stage
+
+    monkeypatch.setattr(scrape_stage, "SCRAPERS", scrapers)
+    monkeypatch.setattr(cli, "SCRAPERS", scrapers)
+    runner = CliRunner()
+    codes = [
+        runner.invoke(cli.app, ["scrape-part", "--chain", name, "--date", "2026-01-02", "--rate", "1000"]).exit_code
+        for name in scrapers if name not in skip
+    ]
+    result = runner.invoke(cli.app, ["assemble", "--date", "2026-01-02"])
+    assert result.exit_code == 0, result.output
+    return codes
+
+
+def _stage1_files(root: Path) -> dict[str, str]:
+    stage = root / "snapshots" / "2026-01-02" / storage.SCRAPE
+    return {p.name: p.read_text() for p in sorted(stage.iterdir()) if p.suffix != ".parquet"}
+
+
+def test_scraping_chain_by_chain_builds_the_same_snapshot_as_one_run(tmp_path, monkeypatch):
+    """CI scrapes each chain in its own job and assembles after; the result
+    has to be the snapshot a single `mallscape scrape` would have written,
+    down to the report and the health record."""
+    from mallscape_scrape import pipeline as scrape_stage
+
+    scrapers = {
+        "sm": _fake("sm", {"sm-a": ("JOLLIBEE", "WATSONS"), "sm-b": ("JOLLIBEE",)}),
+        "ayala": _fake_ayala(failed={"ay-b": "FAILED ay-b: X"}, alerts=["roster changed"]),
+    }
+    built = {}
+    for how in ("run", "ci"):
+        root = tmp_path / how
+        monkeypatch.setattr(storage, "DATA_DIR", root)
+        storage.write("2026-01-01", storage.SCRAPE, "malls", MALLS)
+        storage.write("2026-01-01", storage.SCRAPE, "stores", STORES)
+        if how == "run":
+            monkeypatch.setattr(scrape_stage, "SCRAPERS", scrapers)
+            scrape_stage.run(list(scrapers), "2026-01-02", rate=1000)
+        else:
+            assert _ci_scrape(monkeypatch, scrapers) == [0, 0]
+        built[how] = _stage1_files(root)
+    assert built["ci"] == built["run"]
+    assert set(built["ci"]) == {"health.json", "malls.csv", "run_report.md", "stores.csv"}
+
+
+def test_a_chain_whose_part_never_arrived_counts_as_failed(snapshot, monkeypatch):
+    """Its job died before writing even a failure. Assembling without it must
+    not read as that chain having no malls."""
+    sm = _fake("sm", {"sm-a": ("JOLLIBEE", "WATSONS"), "sm-b": ("JOLLIBEE",)})
+    _ci_scrape(monkeypatch, {"sm": sm, "ayala": _fake_ayala()}, skip=("ayala",))
+    problems = _problems()
+    assert any("ayala" in p and "no result" in p for p in problems), problems
+
+
+def test_a_chain_that_fails_outright_exits_1_and_still_reports(snapshot, monkeypatch):
+    from mallscape_scrape import pipeline as scrape_stage
+
+    sm = _fake("sm", {"sm-a": ("JOLLIBEE", "WATSONS"), "sm-b": ("JOLLIBEE",)})
+    down = _fake_ayala(raises=RuntimeError("tunnel to http://user:hunter2@proxy failed"))
+    assert _ci_scrape(monkeypatch, {"sm": sm, "ayala": down}) == [0, 1]
+    part = json.loads(scrape_stage.part_path("2026-01-02", "ayala").read_text())
+    assert "RuntimeError" in part["error"] and "hunter2" not in part["error"]
+    assert any("ayala" in p and "RuntimeError" in p for p in _problems())
+
+
+def test_the_ci_matrix_lists_every_chain_once_and_flags_the_proxied_ones():
+    from typer.testing import CliRunner
+
+    from mallscape.cli import app
+    from mallscape_core import config
+    from mallscape_scrape.registry_of_scrapers import SCRAPERS
+
+    result = CliRunner().invoke(app, ["chains"])
+    matrix = json.loads(result.output)
+    assert [m["chain"] for m in matrix] == list(SCRAPERS)
+    assert {m["chain"] for m in matrix if m["proxy"]} == set(config.PROXY_CHAINS) & set(SCRAPERS)

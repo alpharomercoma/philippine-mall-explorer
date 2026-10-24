@@ -7,6 +7,8 @@ so each stage can also be driven directly from Python or a test.
 
 from __future__ import annotations
 
+import json
+
 import typer
 
 from mallscape_clean import pipeline as clean_stage
@@ -41,6 +43,44 @@ def scrape(
     run_date = date or storage.today()
     scrape_stage.run(chains, run_date, rate)
     storage.publish_latest(run_date)
+
+
+@app.command("scrape-part")
+def scrape_part(
+    chain: str = typer.Option(..., help=f"one of {', '.join(SCRAPERS)}"),
+    date: str = typer.Option(None, help="snapshot date (YYYY-MM-DD), default today"),
+    rate: float = typer.Option(
+        config.REQUEST_RATE, help="max requests per second, default MALLSCAPE_REQUEST_RATE"
+    ),
+):
+    """Stage 1, one chain: scrape it into a part for `assemble`. Writes no snapshot.
+
+    Exits 1 when the chain failed outright, after writing a part that says so.
+    """
+    if chain not in SCRAPERS:
+        raise SystemExit(f"unknown chain {chain!r}; expected one of {', '.join(SCRAPERS)}")
+    part = scrape_stage.scrape_part(chain, date or storage.today(), rate)
+    if part["error"]:
+        raise typer.Exit(1)
+
+
+@app.command()
+def assemble(date: str = typer.Option(None, help="snapshot date (YYYY-MM-DD), default today")):
+    """Stage 1, last step: build the snapshot from every chain's part.
+
+    A chain with no part is treated as a chain that failed.
+    """
+    run_date = date or storage.today()
+    scrape_stage.assemble(list(SCRAPERS), run_date)
+    storage.publish_latest(run_date)
+
+
+@app.command()
+def chains():
+    """Print the chains as the JSON list CI builds its scrape jobs from."""
+    print(json.dumps([
+        {"chain": name, "proxy": name in config.PROXY_CHAINS} for name in SCRAPERS
+    ]))
 
 
 @app.command()

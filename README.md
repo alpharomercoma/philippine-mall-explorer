@@ -165,6 +165,13 @@ runs the full checks, commits the new snapshot to main, and deploys to GitHub
 Pages. A failed month publishes nothing: the site keeps serving the last good
 snapshot, and the failure is visible in Actions.
 
+The work runs as parallel jobs (`.github/workflows/pipeline.yml`): one job per
+operator scrapes it, an assembly job combines them into the snapshot, and
+geocoding, the build and the end-to-end tests follow, while lint and the unit
+tests run alongside from the start. One operator failing is one red job, and
+the others are unaffected. SM's job is most of the wall time, so a run takes
+about as long as SM does.
+
 Two guards keep an unattended run honest. A chain that loses more than half
 its listings against the previous snapshot keeps that snapshot's rows instead,
 because a collapse is usually the operator's site breaking rather than the
@@ -177,9 +184,9 @@ believed.
 
 Those guards keep a bad month off the site, but they also keep it green: a
 chain carried forward, or a mall that failed, still publishes. So
-`.github/workflows/check.yml` runs everything the monthly run does, every
-Monday at 18:17 Manila time, and publishes nothing. It fails loudly when the
-scrape, the build or the tests fail, and when `mallscape check` finds a chain
+`.github/workflows/check.yml` runs the same pipeline as the monthly run, every
+Monday at 18:17 Manila time, and publishes nothing. It fails loudly when any
+of its jobs fails, and when `mallscape check` finds a chain
 or mall whose scrape raised, a chain carried forward, a scraper alert (the
 operator's roster or markup drifted), or an empty mall that
 `registry/empty_directories.json` does not account for. A failing run opens

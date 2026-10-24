@@ -21,13 +21,80 @@ from mallscape_scrape.registry_of_scrapers import SCRAPERS
 
 
 def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Scrape `chains` one after another, then assemble the snapshot.
+
+    The same two steps CI runs as separate jobs, one per chain and then one to
+    assemble, so a local run and a CI run go through the same code.
+    """
+    # A rerun that dies before writing its own record must not leave an
+    # earlier attempt's clean one behind for `check` to vouch for.
+    health_path(run_date).unlink(missing_ok=True)
+    for name in chains:
+        scrape_part(name, run_date, rate)
+    return assemble(chains, run_date)
+
+
+def part_path(run_date: str, chain: str) -> Path:
+    # Outside snapshots/, which the monthly run commits: a part is the hand-off
+    # between one chain's job and the assembly, not part of the record.
+    return storage.DATA_DIR / "parts" / run_date / f"{chain}.json"
+
+
+def scrape_part(name: str, run_date: str, rate: float) -> dict:
+    """Scrape one chain and write what it found to its part file.
+
+    A chain that fails outright still writes a part, holding only the reason,
+    so the assembly can tell a chain that failed from one that never reported.
+    Returns the part.
+    """
+    path = part_path(run_date, name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.unlink(missing_ok=True)
+    part: dict = {"chain": name, "error": None}
+    cls = SCRAPERS[name]
+    # Only the chains that refuse this runner's IP pay for proxy traffic.
+    proxy = config.PROXY_URL if name in config.PROXY_CHAINS else None
+    fetcher = Fetcher(
+        storage.cache_dir(run_date, name), rate=rate, headers=cls.extra_headers, proxy=proxy
+    )
+    scraper = cls(fetcher)
+    try:
+        malls, stores = scraper.scrape_all()
+    except Exception as exc:
+        # One operator refusing this runner's IP outright (SM's WAF blocks
+        # cloud address ranges wholesale) must not cost the other nine
+        # their month. The chain contributes nothing here, which the
+        # collapse reconciliation in `assemble` turns into last month's rows.
+        part["error"] = redact(f"{type(exc).__name__}: {exc}")
+        print(f"[{name}] FAILED: {part['error']}")
+    else:
+        print(
+            f"[{name}] done: {len(malls)} malls, {len(stores)} stores "
+            f"({fetcher.requests_made} requests, {fetcher.cache_hits} cache hits)"
+        )
+        part.update(
+            malls=[m.to_row() for m in malls],
+            stores=[s.to_row() for s in stores],
+            warnings=scraper.warnings,
+            failed=scraper.failed,
+            alerts=scraper.alerts,
+            confirmed_empty=scraper.confirmed_empty,
+        )
+    finally:
+        fetcher.close()
+    path.write_text(json.dumps(part, ensure_ascii=False))
+    return part
+
+
+def assemble(chains: list[str], run_date: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Combine the chains' parts into the snapshot, its run report and its
+    health record. Reads only the parts, the committed snapshots and the
+    registry, so it needs no network."""
     all_malls, all_stores, warnings = [], [], []
     confirmed_empty: set[tuple[str, str]] = set()
     failed_chains: dict[str, str] = {}
     failed_malls: dict[str, dict[str, str]] = {}
     alerts: dict[str, list[str]] = {}
-    # A rerun that dies before writing its own record must not leave an
-    # earlier attempt's clean one behind for `check` to vouch for.
     health_path(run_date).unlink(missing_ok=True)
 
     # Seed from this date's snapshot if it exists, else carry the previous run
@@ -46,43 +113,30 @@ def run(chains: list[str], run_date: str, rate: float) -> tuple[pd.DataFrame, pd
 
     succeeded = 0
     for name in chains:
-        cls = SCRAPERS[name]
-        # Only the chains that refuse this runner's IP pay for proxy traffic.
-        proxy = config.PROXY_URL if name in config.PROXY_CHAINS else None
-        fetcher = Fetcher(
-            storage.cache_dir(run_date, name), rate=rate, headers=cls.extra_headers, proxy=proxy
-        )
-        scraper = cls(fetcher)
-        try:
-            malls, stores = scraper.scrape_all()
-        except Exception as exc:
-            # One operator refusing this runner's IP outright (SM's WAF blocks
-            # cloud address ranges wholesale) must not cost the other nine
-            # their month. The chain contributes nothing here, which the
-            # collapse reconciliation below turns into last month's rows.
-            reason = redact(f"{type(exc).__name__}: {exc}")
+        path = part_path(run_date, name)
+        if path.exists():
+            part = json.loads(path.read_text())
+        else:
+            # Its job died before writing even a failure: a crashed runner, a
+            # timeout, a failed install. Treated like any other failed chain.
+            part = {"error": "no result: its scrape ended before writing one"}
+        if part["error"]:
+            reason = part["error"]
             warnings.append(
                 f"[{name}] scrape failed entirely ({reason}); "
                 "expecting the previous snapshot's rows to be carried forward"
             )
-            print(f"[{name}] FAILED: {reason}")
             failed_chains[name] = reason
             continue
-        finally:
-            fetcher.close()
         succeeded += 1
-        print(
-            f"[{name}] done: {len(malls)} malls, {len(stores)} stores "
-            f"({fetcher.requests_made} requests, {fetcher.cache_hits} cache hits)"
-        )
-        all_malls.extend(m.to_row() for m in malls)
-        all_stores.extend(s.to_row() for s in stores)
-        warnings.extend(scraper.warnings)
-        if scraper.failed:
-            failed_malls[name] = scraper.failed
-        if scraper.alerts:
-            alerts[name] = scraper.alerts
-        confirmed_empty.update((name, mall_id) for mall_id in scraper.confirmed_empty)
+        all_malls.extend(part["malls"])
+        all_stores.extend(part["stores"])
+        warnings.extend(part["warnings"])
+        if part["failed"]:
+            failed_malls[name] = part["failed"]
+        if part["alerts"]:
+            alerts[name] = part["alerts"]
+        confirmed_empty.update((name, mall_id) for mall_id in part["confirmed_empty"])
     if not succeeded:
         raise SystemExit(
             "every chain failed to scrape; that is this runner's network, not "
