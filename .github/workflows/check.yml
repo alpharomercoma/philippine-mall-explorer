@@ -23,15 +23,20 @@ name: Weekly check
 
 on:
   schedule:
-    - cron: "17 22 * * 0" # 06:17 on Monday, Philippine time (UTC+8)
+    # 18:17 on Monday, Philippine time (UTC+8). Chosen so it can never overlap
+    # the monthly rescrape, which starts 22:00 UTC on the 1st and is cut off
+    # four hours later: the two never put two full scrapes on the operators
+    # and the proxy at once.
+    - cron: "17 10 * * 1"
   workflow_dispatch:
 
 permissions: {}
 
-# Shared with the monthly rescrape, so the operators and the proxy never see
-# two full scrapes at once; whichever starts second waits.
+# Its own group, not the rescrape's. GitHub keeps one pending run per group
+# and cancels it when another queues, so sharing one would let a dispatched
+# check silently cancel a queued monthly run, which publishes the month.
 concurrency:
-  group: rescrape
+  group: weekly-check
   cancel-in-progress: false
 
 jobs:

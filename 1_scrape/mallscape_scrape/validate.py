@@ -237,6 +237,7 @@ def health(
     malls: pd.DataFrame,
     stores: pd.DataFrame,
     *,
+    chains: list[str],
     failed_chains: dict[str, str],
     carried: set[str],
     failed_malls: dict[str, dict[str, str]],
@@ -272,9 +273,13 @@ def health(
         if (chain, mall_id) not in raised
     ]
     prev_date, gone, _, drops = diff_previous(run_date, malls, stores)
-    notices = [f"malls no longer listed since {prev_date}: {sorted(gone)}"] if gone else []
+    # A one-chain run carries the rest forward unscraped; their failures, if
+    # any, belong to whichever run fetched them, and this one cannot vouch.
+    unchecked = sorted(set(malls["chain"]) - set(chains))
+    notices = [f"not scraped in this run, so not checked: {unchecked}"] if unchecked else []
+    notices += [f"malls no longer listed since {prev_date}: {sorted(gone)}"] if gone else []
     notices += [
         f"{chain}:{mall_id}: {before} → {after} tenants since {prev_date} ({pct:+.0%})"
         for (chain, mall_id), before, after, pct in drops
     ]
-    return {"run_date": run_date, "problems": problems, "notices": notices}
+    return {"run_date": run_date, "chains": sorted(chains), "problems": problems, "notices": notices}

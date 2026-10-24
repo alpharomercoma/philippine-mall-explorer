@@ -51,10 +51,12 @@ class MallChainScraper(ABC):
         print(f"[{self.chain}] discovered {len(malls)} malls")
         stores: list[Store] = []
         for i, mall in enumerate(malls, 1):
+            first_alerts = len(self.alerts)
             mall_stores = self._scrape_one(mall)
             if mall_stores is None:
                 continue
             if not mall_stores:
+                attempt_alerts = len(self.alerts)
                 # An empty directory is the one result a cached body cannot be
                 # trusted for: a mall the operator served in full yesterday and
                 # empty today looks identical to a mall that has no directory.
@@ -64,6 +66,11 @@ class MallChainScraper(ABC):
                 # A retry of None raised and has already been warned about; an
                 # attempt that failed is not evidence of an empty mall.
                 if retried:
+                    # Whatever the empty attempt alerted on ("served none") was
+                    # answered by the live site. It stays a warning, so the
+                    # report still shows the retry, but the check is not failed
+                    # on a result that was superseded.
+                    del self.alerts[first_alerts:attempt_alerts]
                     self.warn(
                         f"{mall.mall_id}: cached response held 0 stores, live site "
                         f"served {len(retried)} - the cached body was stale or partial"
