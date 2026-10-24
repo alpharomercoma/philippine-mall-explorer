@@ -140,6 +140,15 @@
       "matched": "Tiendesitas",
       "ref": "way/23953219"
     },
+    "robinsons:cybergate-bacolod": {
+      "lat": 10.644328,
+      "lon": 122.934572,
+      "source": "osm",
+      "precision": "exact",
+      "matched": "Araneta Avenue, Singcang-Airport, Bacolod (old_name Robinsons Metro Bacolod)",
+      "ref": "way/56957139",
+      "note": "Hand-resolved 2026-10-24: Robinsons publishes no address and OSM has nothing named Cybergate. RL Commercial REIT places the mall in Brgy. Singcang; this 3-storey building on Araneta Avenue in Singcang-Airport carries old_name 'Robinsons Metro Bacolod' and is tagged with its BPO tenant, matching the REIT's 'mall with two floors of office space'. Waze puts Robinson's Cybergate within 60 m. Not Cybergate Bacolod 2 and 3, which are office towers in the Robinsons Place complex on Lacson Street. Verified 2026-10-24."
+    },
     "robinsons:galleria-south": {
       "lat": 14.352254,
       "lon": 121.061856,
@@ -579,6 +588,15 @@
       "precision": "exact",
       "matched": "MOA Square, IKEA-SMX Pedestrian Link Bridge, District 1, Pasay, Southern Manila District, Metro Manila, 1300, Philippine",
       "ref": "way/707188468"
+    },
+    "sm:nu-mall-of-asia-building": {
+      "lat": 14.530575,
+      "lon": 120.981103,
+      "source": "osm",
+      "precision": "exact",
+      "matched": "National University, Coral Way, SM Mall of Asia Complex, Pasay",
+      "ref": "way/684169667",
+      "note": "Hand-resolved 2026-10-24: SM publishes only the property's name as its address. National University's MOA campus is the NU Mall of Asia Building on Coral Way, MOA Complex (TESDA registry for NU MOA Inc.), which is this building. Verified 2026-10-24."
     },
     "sm:s-maison": {
       "lat": 14.5319,
@@ -1388,6 +1406,15 @@
       "matched": "SM Southmall",
       "ref": "relation/14061902"
     },
+    "sm:smby-amusement-park": {
+      "lat": 14.532916,
+      "lon": 120.979227,
+      "source": "osm",
+      "precision": "exact",
+      "matched": "Mall of Asia Eye, Seaside Boulevard, SM Mall of Asia Complex, Pasay",
+      "ref": "node/1618379987",
+      "note": "Hand-resolved 2026-10-24: SM publishes only the property's name as its address, and OSM has no feature for the park itself. The park is the rides section of SM By The Bay, and the MOA Eye ferris wheel is its centrepiece; sm:sm-by-the-bay keeps the esplanade (way/30259928). Verified 2026-10-24."
+    },
     "sm:smdc-air-mall": {
       "lat": 14.562245,
       "lon": 121.008631,
@@ -1653,6 +1680,15 @@
       "matched": "WalterMart, National Highway 436, Purok 1, Calicanto, Tramo, Batangas City, Batangas, Calabarzon, 4200, Philippines",
       "ref": "way/481651811"
     },
+    "waltermart:bicutan": {
+      "lat": 14.480673,
+      "lon": 121.045859,
+      "source": "osm",
+      "precision": "exact",
+      "matched": "WalterMart, East Service Road, San Martin de Porres, Parañaque",
+      "ref": "way/54362135",
+      "note": "Hand-resolved 2026-10-24: OSM name search and Nominatim returned only the town or barangay, never the building. WalterMart publishes KM 16 East Service Rd. cor Manalac Ave., Brgy. San Martin De Porres, Parañaque; this is the WalterMart building on that road in that barangay. The Google Maps embed on WalterMart's own branch record is centred 4 km west, on the Dr. A. Santos Ave. WalterMart, so it was not used. Verified 2026-10-24."
+    },
     "waltermart:cabanatuan": {
       "lat": 15.486337,
       "lon": 120.971401,
@@ -1716,6 +1752,15 @@
       "precision": "address",
       "matched": "WalterMart Dasmariñas, WalterMart, Zone 4, Poblacion, Dasmariñas, Cavite, Calabarzon, 4114, Philippines",
       "ref": "way/684033138"
+    },
+    "waltermart:erodriguez": {
+      "lat": 14.621647,
+      "lon": 121.019572,
+      "source": "osm",
+      "precision": "exact",
+      "matched": "WalterMart, Violago Road, Kalusugan, Quezon City",
+      "ref": "way/146578008",
+      "note": "Hand-resolved 2026-10-24: OSM name search and Nominatim returned only the town or barangay, never the building. WalterMart publishes 222 Pacific Center E. Rodriguez Sr., Brgy. Kalusugan, Quezon City; this is the only WalterMart in Kalusugan, 500 m from the centre of the operator's map embed. Verified 2026-10-24."
     },
     "waltermart:gapan": {
       "lat": 15.303428,
@@ -1878,12 +1923,22 @@
       "ref": "way/192368910"
     },
     "waltermart:sta-rosa": {
-      "lat": 14.267556,
-      "lon": 121.077739,
+      "lat": 14.287997,
+      "lon": 121.094377,
       "source": "osm",
       "precision": "exact",
-      "matched": "WalterMart",
-      "ref": "way/448067075"
+      "matched": "WalterMart, RSBS Boulevard, Santa Rosa, Laguna",
+      "ref": "way/309431625",
+      "note": "Corrected 2026-10-24. This entry used to point at way/448067075 in Pulong Santa Cruz, which is the Bel-Air branch, 3 km south. WalterMart publishes F. Reyes St., Brgy. Balibago for this one and centres its map embed 300 m from this building; nothing caught it while the scraper recorded no WalterMart addresses. Verified 2026-10-24."
+    },
+    "waltermart:sta-rosa-bel-air": {
+      "lat": 14.267506,
+      "lon": 121.077732,
+      "source": "osm",
+      "precision": "exact",
+      "matched": "WalterMart, Santa Rosa-Tagaytay Road, Pulong Santa Cruz, Santa Rosa, Laguna",
+      "ref": "way/448067075",
+      "note": "Hand-resolved 2026-10-24: OSM name search and Nominatim returned only the town or barangay, never the building. WalterMart publishes Santa Rosa Tagaytay Road, Brgy. Pulong Sta. Cruz; this building is on that road in that barangay, 200 m from the operator's map embed. It used to be claimed by waltermart:sta-rosa, which is a different branch. Verified 2026-10-24."
     },
     "waltermart:subic": {
       "lat": 14.888499,
@@ -1924,6 +1979,15 @@
       "precision": "exact",
       "matched": "WalterMart Taytay, Ortigas Avenue Extension, Admiral Village, San Isidro, Taytay, Rizal, Calabarzon, 1920, Philippines",
       "ref": "node/10160178389"
+    },
+    "waltermart:the-junction": {
+      "lat": 14.684144,
+      "lon": 121.023516,
+      "source": "osm",
+      "precision": "exact",
+      "matched": "Waltermart, Quirino Highway, Talipapa, Quezon City",
+      "ref": "way/1097152776",
+      "note": "Hand-resolved 2026-10-24: OSM name search and Nominatim returned only the town or barangay, never the building. WalterMart publishes Quirino Highway, Brgy. Talipapa, Novaliches; this building is on that road in that barangay, beside The Junction Place development, 300 m from the operator's map embed. Verified 2026-10-24."
     },
     "waltermart:trece-martires": {
       "lat": 14.280584,
