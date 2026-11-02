@@ -1,0 +1,19 @@
+{
+  "run_date": "2026-11-02",
+  "chains": [
+    "araneta",
+    "ayala",
+    "filinvest",
+    "fishermall",
+    "megaworld",
+    "ortigas",
+    "robinsons",
+    "sm",
+    "starmall",
+    "waltermart"
+  ],
+  "problems": [
+    "megaworld:tuscany-at-mckinley-hill (Tuscany at McKinley Hill) published no tenants and is not in empty_directories.json"
+  ],
+  "notices": []
+}
